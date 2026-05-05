@@ -51,3 +51,37 @@ def add_task(sender_id, title=None, task_text=None, task_file_id=None,
     ''', (sender_id, title, task_text, task_file_id, answer_text, answer_file_id, authors, tags, olympiad, year, language))
     conn.commit()
     conn.close()
+
+
+def dai_authors():
+    conn = sqlite3.connect(DB)
+    cursor = conn.cursor()
+    cursor.execute("SELECT authors FROM tasks WHERE authors IS NOT NULL AND status = 'approved'")
+    all_authors = cursor.fetchall()
+    conn.close()
+    set_authors = set()
+    for au in all_authors:
+        au_s = au[0]
+        au_s = au_s.split(',')
+        for sl in au_s:
+            clean_sl = sl.strip()
+            if clean_sl:
+                set_authors.add(clean_sl)
+    return list(set_authors)
+
+
+def dai_tags():
+    conn = sqlite3.connect(DB)
+    cursor = conn.cursor()
+    cursor.execute("SELECT tags FROM tasks WHERE tags IS NOT NULL AND status ='approved'")
+    all_tags = cursor.fetchall()
+    conn.close
+    set_tags = set()
+    for ta in all_tags:
+        ta_s = ta[0]
+        ta_s = ta_s.split(',')
+        for sl in ta_s:
+            clean_sl = sl.strip().lower()
+            if clean_sl:
+                set_tags.add(clean_sl)
+    return list(set_tags)
