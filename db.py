@@ -85,3 +85,20 @@ def dai_tags():
             if clean_sl:
                 set_tags.add(clean_sl)
     return list(set_tags)
+
+
+def dai_lang():
+    conn = sqlite3.connect(DB)
+    cursor = conn.cursor()
+    cursor.execute("SELECT language FROM tasks WHERE language IS NOT NULL AND status ='approved'")
+    all_lang = cursor.fetchall()
+    conn.close
+    set_lang = set()
+    for la in all_lang:
+        la_s = la[0]
+        la_s = la_s.split(',')
+        for sl in la_s:
+            clean_sl = sl.strip().lower()
+            if clean_sl:
+                set_lang.add(clean_sl)
+    return list(set_lang)
