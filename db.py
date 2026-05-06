@@ -126,5 +126,5 @@ def vivod_na_check(task_id):
     conn.close
     if sl:
         return dict(sl)
-    else: 
+    else:
         return None
