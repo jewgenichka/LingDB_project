@@ -104,7 +104,7 @@ def dai_lang():
     return list(set_lang)
 
 
-def sp_na_odobrenie():
+def sptasks_na_odobrenie():
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -117,13 +117,14 @@ def sp_na_odobrenie():
     return sp_ids
 
 
-def vivod_na_odobrit(task_id):
+def vivod_na_check(task_id):
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM task WHERE id = ?", (task_id))
     sl = cursor.fetchone()
+    conn.close
     if sl:
         return dict(sl)
-    else:
+    else: 
         return None
