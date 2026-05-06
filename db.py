@@ -102,3 +102,28 @@ def dai_lang():
             if clean_sl:
                 set_lang.add(clean_sl)
     return list(set_lang)
+
+
+def sp_na_odobrenie():
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, language FROM tasks WHERE status = 'pending'")
+    na_ids = cursor.fetchall()
+    sp_ids = []
+    for sl in na_ids:
+        sp_ids.append(dict(sl))
+    conn.close
+    return sp_ids
+
+
+def vivod_na_odobrit(task_id):
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM task WHERE id = ?", (task_id))
+    sl = cursor.fetchone()
+    if sl:
+        return dict(sl)
+    else:
+        return None
