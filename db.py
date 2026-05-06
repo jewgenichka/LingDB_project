@@ -37,6 +37,7 @@ def init_db():
     conn.close()
 
 
+#отправляет в бд все заполненные юзером данные, использовать на кнопку отправить на модерацию или чет такое
 def add_task(sender_id, title=None, task_text=None, task_file_id=None,
              answer_text=None, answer_file_id=None, authors=None,
              tags=None, olympiad=None, year=None, language=None):
@@ -53,6 +54,7 @@ def add_task(sender_id, title=None, task_text=None, task_file_id=None,
     conn.close()
 
 
+#выдает список всех сущ-их авторов задач (пысы надо дописать чтоб потом можно доставать все задачи конкретного автора было)
 def dai_authors():
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
@@ -70,6 +72,7 @@ def dai_authors():
     return list(set_authors)
 
 
+#выдает список сущ-их тэгов (тоже надо еще по тэгу доставать задачи)
 def dai_tags():
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
@@ -87,6 +90,7 @@ def dai_tags():
     return list(set_tags)
 
 
+#выдает список сущ-их языков (то же см выше)
 def dai_lang():
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
@@ -104,6 +108,7 @@ def dai_lang():
     return list(set_lang)
 
 
+#отдаст список словарей с id и языками задач которые ожидают одобрения админов
 def sptasks_na_odobrenie():
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
@@ -117,6 +122,7 @@ def sptasks_na_odobrenie():
     return sp_ids
 
 
+#отдаст в виде словаря строку со всеми данными задачи
 def vivod_na_check(task_id):
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
