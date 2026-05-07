@@ -122,15 +122,57 @@ def sptasks_na_odobrenie():
     return sp_ids
 
 
-#отдаст в виде словаря строку со всеми данными задачи
+#отдаст в виде словаря строку со всеми данными задачи по ее id
 def vivod_na_check(task_id):
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM task WHERE id = ?", (task_id))
+    cursor.execute("SELECT * FROM tasks WHERE id = ?", (task_id))
     sl = cursor.fetchone()
     conn.close
     if sl:
         return dict(sl)
     else:
         return None
+
+
+#отдаст в виде списка словарей все данные задач (1 и больше) по одному названию
+def task_po_title(tasks_title):
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM tasks WHERE title = ?", (tasks_title))
+    all_tasks_title = cursor.fetchall()
+    sp_tasks_title = []
+    for sl in all_tasks_title:
+        sp_tasks_title.append(dict(sl))
+    conn.close
+    return sp_tasks_title
+
+
+#вытаскивает в виде списка словарей все задачи одной олимпиады
+def task_po_olimp(tasks_olimp):
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM tasks WHERE olympiad = ?", (tasks_olimp))
+    all_tasks_olimp = cursor.fetchall()
+    sp_tasks_olimp = []
+    for sl in all_tasks_olimp:
+        sp_tasks_olimp.append(dict(sl))
+    conn.close
+    return sp_tasks_olimp
+
+
+#вытакивает в виде списка словарей все задачи одного года
+def task_po_year(tasks_year):
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM tasks WHERE year = ?", (tasks_year))
+    all_tasks_year = cursor.fetchall()
+    sp_tasks_year = []
+    for sl in all_tasks_year:
+        sp_tasks_year.append(dict(sl))
+    conn.close
+    return sp_tasks_year
