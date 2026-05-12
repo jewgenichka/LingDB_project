@@ -93,3 +93,9 @@ if __name__ == "__main__":
         searched = db.top_search(ttitle, tauthors, ttags, tolympiad, tyear, tlanguage)
         for t in searched:
             print(f"[{t['id']}] {t['title']} {t['language']}")
+    if komanda == 'dai_ti':
+        print(db.dai_titles())
+    if komanda == 'dai_ol':
+        print(db.dai_olympiads())
+    if komanda == 'dai_years':
+        print(db.dai_years())
