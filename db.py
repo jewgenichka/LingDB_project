@@ -240,3 +240,14 @@ def top_search(ztitle = None, zauthors = None, ztags = None, zolymp = None, zyea
 
     sp_matches.sort(key=lambda x: x['matches'], reverse=True)
     return sp_matches[:5]
+
+
+def redaktor(task_id, stolb, new):
+    real_stolbs = ['task_text', 'answer_text', 'title', 'authors', 'tags', 'olympiad', 'year', 'language']
+    if stolb in real_stolbs:
+        conn = sqlite3.connect(DB)
+        cursor = conn.cursor()
+        cursor.execute(f"UPDATE tasks SET {stolb} = ? WHERE id = ?", (new, task_id))
+        conn.close
+    else:
+        print(f'Нет столбца с именем {stolb}')
