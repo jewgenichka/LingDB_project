@@ -276,13 +276,11 @@ def dai_titles():
     cursor.execute("SELECT title FROM tasks WHERE title IS NOT NULL AND status = 'approved'")
     all_titles = cursor.fetchall()
     conn.close()
-
     set_titles = set()
     for ti in all_titles:
         clean_ti = ti[0].strip()
         if clean_ti:
             set_titles.add(clean_ti)
-
     return list(set_titles)
 
 #выдает список названий олимпиад без повторов, учитывает пробелы
@@ -292,7 +290,6 @@ def dai_olympiads():
     cursor.execute("SELECT olympiad FROM tasks WHERE olympiad IS NOT NULL AND status = 'approved'")
     all_olymp = cursor.fetchall()
     conn.close()
-
     set_olymp = set()
     for ol in all_olymp:
         clean_ol = ol[0].strip()
@@ -312,5 +309,4 @@ def dai_years():
     for ye in all_years:
         if ye[0] is not None:
             set_years.add(ye[0])
-
     return list(set_years)
