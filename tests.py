@@ -15,6 +15,8 @@ if __name__ == "__main__":
         tolympiad = input("Введите олимпиаду задачи: ")
         if tolympiad:
             tyear = input("Введите год олимпиады: ")
+        else:
+            tyear = None
         tlanguage = input("На какой язык составлена задача: ")
         tsender_id = 1234567 
         tfile_id = "file_id_test_123" 
@@ -33,7 +35,7 @@ if __name__ == "__main__":
                 print(f"[{t['id']}] {t['language']}")
         else:
             print("В базе пусто. ЧТО-ТО НЕ ТАК.")
-    elif komanda == "del":
+    if komanda == "del":
         print("ТЕСТИРОВАНИЕ УДАЛЕНИЯ ЗАДАЧИ")
         a = input("Введите id задачи, которую хотите удалить: ")
         try:
@@ -41,7 +43,7 @@ if __name__ == "__main__":
             print("УСПЕШНО! ВЫ УНИЧТОЖИИЛИ ЭТУ ЗАДАЧУ")
         except Exception as e:
             print(f"ОШИБКА при удалении: {e}")
-    elif komanda == "dobro":
+    if komanda == "dobro":
         print("ТЕСТИРОВАНИЕ ОДОБРЕНИЯ ЗАДАЧИ")
         a = input("Введите id задачи, которую хотите одобрить: ")
         try:
@@ -49,3 +51,45 @@ if __name__ == "__main__":
             print("УСПЕШНО! ВЫ ОДОБРИЛИ ЭТУ ЗАДАЧУ")
         except Exception as e:
             print(f"ОШИБКА при одобрение: {e}")
+    if komanda == 'all':
+        all_ta = db.dai_all()
+        for t in all_ta:
+            print(f"[{t['id']}] {t['title']} {t['language']}")
+    if komanda == 'dai_au':
+        print(db.dai_authors())
+    if komanda == 'dai_tags':
+        print(db.dai_tags())
+    if komanda == 'dai_lang':
+        print(db.dai_lang())
+    if komanda == 'check_task':
+        id_tas = input('Введите id задачи, которую хотите увидеть: ')
+        print(db.vivod_na_check(id_tas))
+    if komanda == 'tpo_olimp':
+        t_olimp = input('Введите олимпиаду: ')
+        sp_po_olimp = db.task_po_olimp(t_olimp)
+        for t in sp_po_olimp:
+            print(f"[{t['id']}] {t['title']} {t['language']}")
+    if komanda == 'red':
+        id_z = input('Какую задачу хотите изменить? ')
+        stolb1 = input('Какой столбец: ')
+        new_val = input('Введите новое значение: ')
+        try:
+            db.redaktor(id_z, stolb1, new_val)
+            print('Вы успешно отредактировали задачу!')
+        except Exception as e:
+            print(f'ОШИБКА при редактировании: {e}')
+    if komanda == 'tpo_year':
+        t_year = input('Введите год: ')
+        sp_po_year = db.task_po_year(t_year)
+        for t in sp_po_year:
+            print(f"[{t['id']}] {t['title']} {t['language']}")
+    if komanda == 'search':
+        ttitle = list(input("Введите заголовок задачи: "))
+        tauthors = input("Введите имя авторов: ").strip().split(', ')
+        ttags = input("Введите тэги через запятую: ").strip().split(', ')
+        tolympiad = list(input("Введите олимпиаду задачи: "))
+        tyear = list(input("Введите год олимпиады: "))
+        tlanguage = input("На какой язык составлена задача: ").strip().split(', ')
+        searched = db.top_search(ttitle, tauthors, ttags, tolympiad, tyear, tlanguage)
+        for t in searched:
+            print(f"[{t['id']}] {t['title']} {t['language']}")

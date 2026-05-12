@@ -242,6 +242,7 @@ def top_search(ztitle = None, zauthors = None, ztags = None, zolymp = None, zyea
     return sp_matches[:5]
 
 
+#редактирует любую ячейку задачи по ее id и указанию столбца для редактирования
 def redaktor(task_id, stolb, new):
     real_stolbs = ['task_text', 'answer_text', 'title', 'authors', 'tags', 'olympiad', 'year', 'language']
     if stolb in real_stolbs:
@@ -252,3 +253,17 @@ def redaktor(task_id, stolb, new):
         conn.close
     else:
         print(f'Нет столбца с именем {stolb}')
+
+
+#хз надо или нет но эта функци выводит просто список словарей с данными всех вообще задач (и одобренных и нет)
+def dai_all():
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM tasks")
+    all_tasks = cursor.fetchall()
+    sp_all_tasks = []
+    for sl in all_tasks:
+        sp_all_tasks.append(dict(sl))
+    conn.close()
+    return sp_all_tasks
