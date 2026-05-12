@@ -248,6 +248,7 @@ def redaktor(task_id, stolb, new):
         conn = sqlite3.connect(DB)
         cursor = conn.cursor()
         cursor.execute(f"UPDATE tasks SET {stolb} = ? WHERE id = ?", (new, task_id))
+        conn.commit()
         conn.close
     else:
         print(f'Нет столбца с именем {stolb}')
