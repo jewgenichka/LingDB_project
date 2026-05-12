@@ -194,3 +194,49 @@ def task_po_year(tasks_year):
         sp_tasks_year.append(dict(sl))
     conn.close
     return sp_tasks_year
+
+#поиск в который на вход пожалуйста сделайте списки во всех переменных
+def top_search(ztitle = None, zauthors = None, ztags = None, zolymp = None, zyear = None, zlang = None):
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM tasks WHERE status = 'approved'")
+    all_t = cursor.fetchall()
+    conn.close()
+    sp_matches = []
+    for task in all_t:
+        matches = 0
+        if (ztitle and task['title']):
+            for tit in ztitle:
+                if tit == task['title']:
+                    matches += 1
+                    break
+        if (zolymp and task['olympiad']):
+            for ol in zolymp:
+                if ol == task['olympiad']:
+                    matches += 1
+                    break
+        if (zyear and task['year']):
+            for ye in zyear:
+                if str(ye) == str(task['year']):
+                    matches += 1
+                    break
+        if (zauthors and task['authors']):
+            for au in zauthors:
+                if str(au) in task['authors']:
+                    matches += 1
+        if (ztags and task['tags']):
+            for tag in ztags:
+                if tag in task['tags']:
+                    matches += 1
+        if (zlang and task['language']):
+            for lan in zlang:
+                if lan in task['language']:
+                    matches += 1
+        if matches >= 1:
+            di_task = dict(task)
+            di_task['matches'] = matches
+            sp_matches.append(di_task)
+
+    sp_matches.sort(key=lambda x: x['matches'], reverse=True)
+    return sp_matches[:5]
