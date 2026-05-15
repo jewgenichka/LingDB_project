@@ -310,3 +310,53 @@ def dai_years():
         if ye[0] is not None:
             set_years.add(ye[0])
     return list(set_years)
+
+
+#выдает список задач на один язык
+def task_po_lang(lang):
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute('''
+                   SELECT id, title, language FROM tasks WHERE language LIKE ? AND status = "approved"
+                   ''', (f"%{lang}%",))
+    all_tasks = cursor.fetchall()
+    sp_tasks = []
+    for sl in all_tasks:
+        sp_tasks.append(dict(sl))
+    conn.close()
+    return sp_tasks
+
+
+#выдает список задач с определенным тегом
+def task_po_tag(tag):
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id, title, language FROM tasks WHERE tags LIKE ? AND status = "approved"
+        ''', (f"%{tag}%",)
+    )
+    all_tasks = cursor.fetchall()
+    sp_tasks = []
+    for sl in all_tasks:
+        sp_tasks.append(dict(sl))
+    conn.close()
+    return sp_tasks
+
+
+#выдает список задач с одним автором
+def task_po_author(author):
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id, title, language FROM tasks WHERE authors LIKE ? AND status = "approved"
+                   ''', (f"%{author}%",)
+    )
+    all_tasks = cursor.fetchall()
+    sp_tasks = []
+    for sl in all_tasks:
+        sp_tasks.append(dict(sl))
+    conn.close()
+    return sp_tasks

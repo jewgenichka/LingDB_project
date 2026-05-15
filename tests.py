@@ -99,3 +99,18 @@ if __name__ == "__main__":
         print(db.dai_olympiads())
     if komanda == 'dai_years':
         print(db.dai_years())
+    if komanda == 'tpo_au':
+        t_au = input('Введите автора: ')
+        sp_po_au = db.task_po_author(t_au)
+        for t in sp_po_au:
+            print(f"[{t['id']}] {t['title']} {t['language']}")
+    if komanda == 'tpo_tag':
+        t_tag = input('Введите тэг: ')
+        sp_po_tag = db.task_po_tag(t_tag)
+        for t in sp_po_tag:
+            print(f"[{t['id']}] {t['title']} {t['language']}")
+    if komanda == 'tpo_lang':
+        t_lang = input('Введите язык: ')
+        sp_po_lang = db.task_po_lang(t_lang)
+        for t in sp_po_lang:
+            print(f"[{t['id']}] {t['title']} {t['language']}")
