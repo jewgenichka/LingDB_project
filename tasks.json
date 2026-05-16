@@ -1,19 +1,22 @@
 {
     "1365235944": {
-        "authors": "Никитин М.",
-        "olympiad": "1800",
-        "tags": [
-            "Лучший"
-        ]
+        "authors": null,
+        "year": null,
+        "olympiad": null,
+        "language": null,
+        "chosen_tags": [],
+        "tags": null
     },
-    "1365235944": {
-        "authors": "Мама, папа",
-        "year": 2000,
-        "olympiad": "Всерос",
-        "language": "Английский",
-        "tags": [
-            "Фонетика",
-            " морфология"
-        ]
-    }
+    "1365235944": [
+        {
+            "authors": "Пупкин",
+            "year": 2000,
+            "olympiad": "Всош",
+            "language": "Убыхский",
+            "chosen_tags": [],
+            "tags": [
+                "фонологич"
+            ]
+        }
+    ]
 }
