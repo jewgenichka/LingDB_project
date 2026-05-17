@@ -1,22 +1,189 @@
 {
-    "1365235944": {
-        "authors": null,
-        "year": null,
-        "olympiad": null,
-        "language": null,
-        "chosen_tags": [],
-        "tags": null
-    },
     "1365235944": [
         {
-            "authors": "Пупкин",
-            "year": 2000,
-            "olympiad": "Всош",
-            "language": "Убыхский",
-            "chosen_tags": [],
+            "authors": null,
+            "year": null,
+            "olympiad": null,
+            "language": null,
+            "chosen_tags": [
+                "синтаксис"
+            ],
             "tags": [
-                "фонологич"
+                "синтаксис"
             ]
+        },
+        {
+            "authors": null,
+            "year": null,
+            "olympiad": null,
+            "language": null,
+            "chosen_tags": [
+                "синтаксис"
+            ],
+            "tags": [
+                "синтаксис"
+            ]
+        },
+        {
+            "authors": null,
+            "year": 2000,
+            "olympiad": "всош",
+            "language": "убыхский",
+            "chosen_tags": [
+                "морфология",
+                "озарение"
+            ],
+            "tags": [
+                "морфология",
+                "озарение"
+            ]
+        },
+        {
+            "authors": null,
+            "year": null,
+            "olympiad": null,
+            "language": null,
+            "tags": [],
+            "customs": [
+                "пупкин тег",
+                "лучший тег"
+            ]
+        },
+        {
+            "authors": null,
+            "year": null,
+            "olympiad": null,
+            "language": null,
+            "tags": [],
+            "customs": [
+                "ещё один тег"
+            ]
+        },
+        {
+            "authors": null,
+            "year": null,
+            "olympiad": null,
+            "language": null,
+            "tags": [],
+            "chosen_tags": [
+                "лучший тег в истории"
+            ]
+        },
+        {
+            "authors": null,
+            "year": null,
+            "olympiad": null,
+            "language": null,
+            "tags": [],
+            "customs": [
+                "самый лучший тег"
+            ],
+            "chosen_tags": [
+                "самый лучший тег"
+            ]
+        },
+        {
+            "authors": null,
+            "year": null,
+            "olympiad": null,
+            "language": null,
+            "chosen_tags": [
+                "лучший тег"
+            ]
+        },
+        {
+            "authors": null,
+            "year": null,
+            "olympiad": null,
+            "language": null,
+            "tags": [],
+            "chosen_tags": [
+                "лексика",
+                "синтаксис",
+                "ещё тег"
+            ]
+        },
+        {
+            "authors": null,
+            "year": null,
+            "olympiad": null,
+            "language": null,
+            "tags": [
+                "фонетика",
+                "озарение"
+            ],
+            "chosen_tags": [
+                "озарение",
+                "ещё один тег",
+                "фонетика"
+            ]
+        },
+        {
+            "authors": null,
+            "year": null,
+            "olympiad": null,
+            "language": null,
+            "tags": [
+                "фонетика",
+                "лексика"
+            ],
+            "chosen_tags": [
+                "фонетика",
+                "лексика",
+                "ещё один тег"
+            ]
+        },
+        {
+            "authors": "Иткин",
+            "year": 1970,
+            "olympiad": "Всерос",
+            "language": "Русский",
+            "tags": [
+                "морфология",
+                "синтаксис"
+            ],
+            "chosen_tags": [
+                "морфология",
+                "самая плохая задача мира",
+                "синтаксис"
+            ],
+            "id": "697ffd81-b88f-4c31-bf00-c3a21d7ffdfa",
+            "user_id": 1365235944,
+            "file": "Colorless green ideas.jpg"
+        },
+        {
+            "authors": "Влахов",
+            "year": 2015,
+            "olympiad": "Закл ВСОШ",
+            "language": "Русский",
+            "tags": [
+                "морфология",
+                "синтаксис"
+            ],
+            "chosen_tags": [
+                "просто уродская",
+                "морфология",
+                "синтаксис"
+            ],
+            "id": "942d0b63-0c4c-4fad-a069-a3a41ef0863e",
+            "user_id": 1365235944,
+            "file": "chomsky1965-ch1.pdf"
+        },
+        {
+            "authors": "Пупа, Лупа",
+            "year": 1901,
+            "olympiad": "КФК",
+            "language": "Английский",
+            "tags": [
+                "лексика",
+                "фонетика"
+            ],
+            "chosen_tags": [
+                "лексика",
+                "фонетика"
+            ],
+            "id": "d3c43cc9-d03e-453b-aee8-da61ab495b5e",
+            "file": "formuly-tangensa-i-kotangensa.png"
         }
     ]
 }

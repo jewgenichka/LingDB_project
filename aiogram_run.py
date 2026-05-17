@@ -1,6 +1,8 @@
 #пока что здесь хранится все, связанное с перепиской с пользователем, но в будущем это будет разделено на несколько файлов
 import asyncio
+from importlib.resources import path
 import json
+import uuid
 import os
 
 from create_bot import bot, dp
@@ -10,6 +12,9 @@ from aiogram.types import Message
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
 file = 'tasks.json'
+dir = 'tasks'
+if not os.path.exists(dir):
+    os.makedirs(dir)
 
 def load_data():
     if os.path.exists(file):
@@ -38,14 +43,11 @@ def tags_keyboard(tags_db, chosen_tags):
 
     for tag in tags_db:
         chosen = f"✅{tag}" if tag in chosen_tags else tag
-        buttons.append(InlineKeyboardButton(text=chosen, callback_data=f"tag_{tag}"))
+        buttons.append([InlineKeyboardButton(text=chosen, callback_data=f"tag_{tag}")])
     
-    lower_row = []
-    if chosen_tags:
-        lower_row.append(InlineKeyboardButton(text="Готово", callback_data="done"))
-    lower_row.append(InlineKeyboardButton(text="Пропустить", callback_data="skip"))
-    lower_row.append(InlineKeyboardButton(text="Нет в списке", callback_data="custom_tag"))
-    return InlineKeyboardMarkup(inline_keyboard=[buttons, lower_row])
+    lower_row = [InlineKeyboardButton(text="Готово", callback_data="done"), InlineKeyboardButton(text="Пропустить", callback_data="skip"), InlineKeyboardButton(text="Нет в списке", callback_data="custom_tag")]
+    buttons.append(lower_row)
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 #начало
 @start_router.message(CommandStart())
@@ -87,28 +89,32 @@ async def callbacks(callback: CallbackQuery):
             step[user_id] = 5
             await get_tags(callback.message, user_id) 
         elif step[user_id] == 5.1:
-            answers[user_id]['tags'] = None
+            answers[user_id]['tags'] = []
             await callback.message.edit_reply_markup(None)
-            await task_save(callback.message, user_id)
-            await callback.answer('Вы пропустили выбор тегов.')
+            if 'customs' in answers[user_id]:
+                del answers[user_id]['customs']
+            await callback.answer()
+            step[user_id] = 6
+            await callback.message.answer('Шаг 6. Отправьте файл с задачей.')
             return
     
         await callback.answer()
         return
 
     elif step.get(user_id) == 5.1:
-        tags_db = ['морфология', 'лексика', 'фонетика', 'синтаксис', 'озарение', 'история языка'] #Здесь затем будет функция доставания тегов из базы данных        
-        
         if data.startswith("tag_"):
             tag = data[4:]
 
-            if tag in answers[user_id]['chosen_tags']:
-                answers[user_id]['chosen_tags'].remove(tag)
+            if 'tags' not in answers[user_id]:
+                answers[user_id]['tags'] = []
+
+            if tag in answers[user_id]['tags']:
+                answers[user_id]['tags'].remove(tag)
                 await callback.answer(f'Тег "{tag}" удалён.')
             else:
-                answers[user_id]['chosen_tags'].append(tag)
+                answers[user_id]['tags'].append(tag)
                 await callback.answer(f'Тег "{tag}" добавлен.')
-            await callback.message.edit_reply_markup(reply_markup=tags_keyboard(['морфология', 'лексика', 'фонетика', 'синтаксис', 'озарение', 'история языка'], answers[user_id]['chosen_tags']))
+            await callback.message.edit_reply_markup(reply_markup=tags_keyboard(['морфология', 'лексика', 'фонетика', 'синтаксис', 'озарение', 'история языка'], answers[user_id]['tags']))
     
         elif data == "custom_tag":
             step[user_id] = 5.2
@@ -116,42 +122,28 @@ async def callbacks(callback: CallbackQuery):
             await callback.answer()
     
         elif data == "done":
-            answers[user_id]['tags'] = answers[user_id]['chosen_tags']
+            all = list(set(answers[user_id].get('customs', []) + answers[user_id].get('tags', [])))
+            answers[user_id]['chosen_tags'] = all
+
+            if 'customs' in answers[user_id]:
+                del answers[user_id]['customs']
+            step[user_id] = 6
             await callback.message.edit_reply_markup(None)
-            await task_save(callback.message, user_id)
-            await callback.answer('Выбор тегов завершён.')
-    
-        elif data == "skip":
-            answers[user_id]['tags'] = None
-            await callback.message.edit_reply_markup(None)
-            await task_save(callback.message, user_id)
-            await callback.answer('Вы пропустили выбор тегов.')
-
-async def step2(message: Message, user_id: int):
-    if step[user_id] == 2:
-        await message.answer('Шаг 2. Добавьте год олимпиады. Если не помните, нажмите "Пропустить".', parse_mode='Markdown', reply_markup=skip_keyboard())
-async def step3(message: Message, user_id: int):
-    if step[user_id] == 3:
-        await message.answer('Шаг 3. Добавьте олимпиаду, на которой встретилась задача. Если не помните, нажмите "Пропустить".', parse_mode='Markdown', reply_markup=skip_keyboard())
-
-async def step4(message: Message, user_id: int):
-    if step[user_id] == 4:
-        await message.answer('Шаг 4. Добавьте язык, которому посвящена задача. Если не помните, нажмите "Пропустить".', parse_mode='Markdown', reply_markup=skip_keyboard())
-
-async def step5(message: Message, user_id: int):
-    if step[user_id] == 5:
-        await message.answer('Шаг 5. Выберите теги, связанные с задачей. Если не помните, нажмите "Пропустить".', parse_mode='Markdown', reply_markup=skip_keyboard())
+            await callback.message.answer('Шаг 6. Отправьте файл с задачей.')
+            return
 
 async def get_tags(message: Message, user_id: int):
     tags_db = ['морфология', 'лексика', 'фонетика', 'синтаксис', 'озарение', 'история языка'] #Здесь затем будет функция доставания тегов из базы данных
 
     if user_id not in answers:
         answers[user_id] = {}
-    if 'chosen_tags' not in answers[user_id]:
-        answers[user_id]['chosen_tags'] = []
+    if 'tags' not in answers[user_id]:
+        answers[user_id]['tags'] = []
+    if 'customs' not in answers[user_id]:
+        answers[user_id]['customs'] = []
     
     step[user_id] = 5.1
-    await message.answer('Шаг 5. Выберите теги, связанные с задачей. Если нет подходящих, нажмите "Пропустить".', reply_markup=tags_keyboard(tags_db, answers[user_id]['chosen_tags']))
+    await message.answer('Шаг 5. Выберите теги, связанные с задачей. Если нет подходящих, нажмите "Пропустить".', reply_markup=tags_keyboard(tags_db, answers[user_id]['customs']))
 
 @start_router.message()
 async def answer_message(message: Message):
@@ -185,22 +177,53 @@ async def answer_message(message: Message):
         answers[user_id]['language'] = text
         await get_tags(message, user_id)
     elif step[user_id] == 5.2:
-        answers[user_id]['tags'] = [tag.strip() for tag in text.split(',')]
-        await task_save(message, user_id)
+        answers[user_id]['customs'] = [tag.strip() for tag in text.split(',')]
 
-async def task_save(message: Message, user_id: int):
-    if user_id not in all_data:
-        all_data[user_id] = []
-    all_data[user_id].append(answers[user_id])
-    save_data(all_data)
+        step[user_id] = 5.1
+        tags_db = ['морфология', 'лексика', 'фонетика', 'синтаксис', 'озарение', 'история языка'] #Здесь затем будет функция доставания тегов из базы данных
+        selected = answers[user_id].get('tags', [])
+        all = list(set(answers[user_id].get('customs', []) + answers[user_id].get('tags', [])))
 
-    await message.answer('Спасибо! Ваша задача добавлена в базу данных.')
-    del step[user_id]
-    del answers[user_id]
+        await message.answer('Ваш(и) тег(и): ' + ', '.join(all))
+        await message.answer('Выберите теги, связанные с задачей. Если нет подходящих, нажмите "Пропустить".', reply_markup=tags_keyboard(tags_db, selected))
+        return
+    elif step[user_id] == 6:
+        if message.document is not None:
+            await taskfile(message, user_id)
+        else:
+            await message.answer('Пожалуйста, отправьте файл с задачей.')
+        return
+
+async def taskfile(message: Message, user_id: int):
+    if message.document is not None:
+        info = await bot.get_file(message.document.file_id)
+        downloaded = await bot.download_file(info.file_path)
+
+        name = message.document.file_name
+        save_path = os.path.join(dir, name)
+        with open(save_path, 'wb') as f:
+            f.write(downloaded.getvalue())
+
+        task_id = str(uuid.uuid4()) #берем айдишник задачи, который будет использоваться для ее идентификации в базе данных
+        task_data = answers[user_id]
+        task_data['id'] = task_id
+        task_data['file'] = name
+
+        if str(user_id) not in all_data: #процесс сохранения данных в бд
+            all_data[str(user_id)] = []
+        all_data[str(user_id)].append(task_data)
+        save_data(all_data)
+        await message.answer('Спасибо! Ваша задача добавлена в базу данных.')
+        del step[user_id]
+        del answers[user_id]
+    else:
+        await message.answer('Пожалуйста, отправьте файл с задачей.')
 
 @start_router.message(Command('search'))
 async def cmd_search(message: Message):
     await message.answer('Помните ли вы название задачи?')
+
+#здесь будет логика поиска задач по базе данных
 
 async def main():
     dp.include_router(start_router)
