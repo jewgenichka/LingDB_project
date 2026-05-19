@@ -131,7 +131,6 @@ async def handle_tags(callback: CallbackQuery, user_id: int):
         await callback.answer()
 
     elif data == "done":
-        print(next)
         all = list(set(answers[user_id].get(custom, []) + answers[user_id].get(info, [])))
         answers[user_id][info] = all
         if not answers[user_id][info]:
@@ -194,8 +193,8 @@ async def cmd_start(message: Message):
 @start_router.message(Command('add'))
 async def cmd_add(message: Message):
     user_id = message.from_user.id
-    step[user_id] = 1
-    await get_tags1(message, user_id)
+    step[user_id] = 0
+    await message.answer('Шаг 0. Введите название задачи. Если не хотите указывать, нажмите "Пропустить".', reply_markup=skip_keyboard())
 
 #все коллбеки
 @start_router.callback_query()
@@ -207,7 +206,7 @@ async def callbacks(callback: CallbackQuery):
         if user_id not in step:
             await callback.answer()
             return
-        if step[user_id] in [1, 1.1]:
+        elif step[user_id] == 0:
             del step[user_id]
             if user_id in answers:
                 del answers[user_id]
@@ -215,7 +214,17 @@ async def callbacks(callback: CallbackQuery):
             await callback.message.answer('Вы вернулись в главное меню. Пишите /add, чтобы добавить задачу, или /search, чтобы найти задачу.')
             await callback.answer()
             return
-        if step[user_id] == 2:
+        elif step[user_id] in [1, 1.1]:
+            step[user_id] = 0
+            if 'authors' in answers[user_id]:
+                del answers[user_id]['authors']
+            if 'custom_authors' in answers[user_id]:
+                del answers[user_id]['custom_authors']
+            await callback.message.edit_reply_markup(None)
+            await callback.message.answer('Шаг 0. Введите название задачи. Если не хотите указывать, нажмите "Пропустить".', reply_markup=skip_keyboard())
+            await callback.answer()
+            return
+        elif step[user_id] == 2:
             step[user_id] = 1
             if 'year' in answers[user_id]:
                 del answers[user_id]['year']
@@ -271,6 +280,13 @@ async def callbacks(callback: CallbackQuery):
     if data == "skip":
         if user_id not in answers:
             answers[user_id] = {}
+        if step[user_id] == 0:
+            answers[user_id]['name'] = None
+            step[user_id] = 1
+            await callback.message.edit_reply_markup(None)
+            await get_tags1(callback.message, user_id)
+            await callback.answer()
+            return
         if step[user_id] == 1:
             answers[user_id]['authors'] = []
             if 'custom_authors' in answers[user_id]:
@@ -418,6 +434,16 @@ async def answer_message(message: Message):
         return  # Если пользователь не начал процесс добавления, игнорируем сообщение
 
     text = message.text
+    if step[user_id] == 0:
+        if user_id not in answers:
+            answers[user_id] = {}
+        if text.strip():
+            answers[user_id]['name'] = text.strip()
+        else:
+            answers[user_id]['name'] = None
+        step[user_id] = 1
+        await get_tags1(message, user_id)
+        return
 
     if step[user_id] == 1:
         await get_tags1(message, user_id)
