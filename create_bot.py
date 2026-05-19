@@ -1,16 +1,18 @@
+#у меня чет не работало с файлом .env поэтому здесь прописаны токен и админы
+
+#айди отправителя, название, текст, айди файл, текст ответ, айди ответа, авторы (несколько), теги (несколько), олимпиада, (если есть олимпиада, то сохраняется) год олимпиады, язык(и)
+
 import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
-from decouple import config
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from decouple import Config, RepositoryEnv
 import os
 
-# pg_db = PostgresHandler(config('PG_LINK'))
+#pg_db = PostgresHandler(config('PG_LINK'))
 
-# Теперь config() работает как обычно
 ADMINS="1365235944"
 admins = [int(admin_id) for admin_id in ADMINS.split(',')]
 
