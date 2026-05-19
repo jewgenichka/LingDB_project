@@ -10,18 +10,7 @@ from aiogram import Router, F
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-
-file = 'tasks.json'
-
-def load_data():
-    if os.path.exists(file):
-        with open(file, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return {}
-def save_data(data):
-    with open(file, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
-all_data = load_data()
+from db import dai_authors, dai_olympiads, dai_lang, dai_tags, add_task
 
 step = {}
 answers = {}
@@ -60,7 +49,6 @@ def noskip_onetag_keyboard(tags_db, chosen_tag):
     lower_row = [InlineKeyboardButton(text="Готово", callback_data="done"), InlineKeyboardButton(text="Нет в списке", callback_data="custom_tag")]
     buttons.append(lower_row)
     return back_keyboard(buttons)
-
 
 def tags_keyboard(tags_db, chosen_tags):
     buttons = []
@@ -157,7 +145,7 @@ async def handle_tags(callback: CallbackQuery, user_id: int):
         elif next == 5:
             await get_tags5(callback.message, user_id)
         elif next == 6.1:
-            await callback.message.answer('Шаг 6. Загрузите файл с задачей или введите ее текстом.', reply_markup=files_keyboard())
+            await callback.message.answer('Шаг 6. Как вы хотите добавить задачу?', reply_markup=files_keyboard())
         await callback.answer()
     elif data == 'skip':
         answers[user_id][info] = []
@@ -354,11 +342,26 @@ async def callbacks(callback: CallbackQuery):
             step[user_id] = 5
             await callback.message.edit_reply_markup(None)
             await get_tags5(callback.message, user_id)
+        return
+    elif step.get(user_id) == 7.1:
+        if data == 'file':
+            step[user_id] = 7.2
+            await callback.message.edit_reply_markup(None)
+            await callback.message.answer('Пожалуйста, отправьте файл с ответом.', reply_markup=onlyback_keyboard())
+        elif data == 'text':
+            step[user_id] = 7.3
+            await callback.message.edit_reply_markup(None)
+            await callback.message.answer('Пожалуйста, введите текст ответа.', reply_markup=onlyback_keyboard())
+        elif data == 'back':
+            step[user_id] = 6.1
+            await callback.message.edit_reply_markup(None)
+            await callback.message.answer('Шаг 6. Как вы хотите добавить задачу?', reply_markup=files_keyboard())
+        return
     await callback.answer()
     return
 
 async def get_tags1(message: Message, user_id: int):
-    tags_db = ['Иткин И. Б.', 'Влахов А. В.', 'Бурлак С. А.'] #авторы из бд
+    tags_db = dai_authors() #авторы из бд
     if user_id not in answers:
         answers[user_id] = {}
     if 'authors' not in answers[user_id]:
@@ -375,7 +378,7 @@ async def get_tags1(message: Message, user_id: int):
     await message.answer('Шаг 1. Выберите авторов задачи из списка. Если не хотите указывать, нажмите "Пропустить".', reply_markup=tags_keyboard(tags_db, answers[user_id]['authors']))
 
 async def get_tags3(message: Message, user_id: int):
-    tags_db = ['ВСОШ', 'Высшая проба', 'КФУ', 'МОШ по лингвистике', 'Изумруд'] #олимпиады из бд
+    tags_db = dai_olympiads() #олимпиады из бд
     if user_id not in answers:
         answers[user_id] = {}
     if 'olympiad' not in answers[user_id]:
@@ -392,7 +395,7 @@ async def get_tags3(message: Message, user_id: int):
     await message.answer('Шаг 3. Выберите олимпиаду, на которой встретилась задача, из списка. Этот шаг обязателен, так как вы указали год.', reply_markup=noskip_onetag_keyboard(tags_db, answers[user_id]['olympiad']))
 
 async def get_tags4(message: Message, user_id: int):
-    tags_db = ['русский язык', 'китайский язык', 'древнерусский язык', 'эсперанто', 'токипона'] #языки из бд
+    tags_db = dai_lang() #языки из бд
     if user_id not in answers:
         answers[user_id] = {}
     if 'language' not in answers[user_id] or answers[user_id]['language'] is None:
@@ -409,8 +412,7 @@ async def get_tags4(message: Message, user_id: int):
     await message.answer('Шаг 4. Выберите из списка язык, которому посвящена задача. Если не хотите указывать, нажмите "Пропустить".', reply_markup=tags_keyboard(tags_db, answers[user_id]['language']))
 
 async def get_tags5(message: Message, user_id: int):
-    tags_db = ['морфология', 'лексика', 'фонетика', 'синтаксис', 'озарение', 'история языка'] #Здесь затем будет функция доставания тегов из базы данных
-
+    tags_db = dai_tags() #теги из бд
     if user_id not in answers:
         answers[user_id] = {}
     if 'tags' not in answers[user_id]:
@@ -495,36 +497,60 @@ async def answer_message(message: Message):
         return
     elif step[user_id] == 6.2:
         if message.document is not None:
-            await taskfile(message, user_id, is_file=True)
+            answers[user_id]['task_file_id'] = message.document.file_id
+            answers[user_id]['task_text'] = None
+            step[user_id] = 7.1
+            await message.answer('Шаг 7. Как вы хотите добавить ответ на задачу?', reply_markup=files_keyboard())
         else:
             await message.answer('Пожалуйста, отправьте файл с задачей.', reply_markup=onlyback_keyboard())
         return
     elif step[user_id] == 6.3:
-        await taskfile(message, user_id, is_file=False)
+        task_text = message.text.strip()
+        if not task_text:
+            await message.answer('Пожалуйста, введите текст задачи.', reply_markup=onlyback_keyboard())
+            return
+        answers[user_id]['task_text'] = task_text
+        answers[user_id]['task_file_id'] = None
+        step[user_id] = 7.1
+        await message.answer('Шаг 7. Как вы хотите добавить ответ на задачу?', reply_markup=files_keyboard())
+        return
+    elif step[user_id] == 7.2:
+        if message.document is not None:
+            answers[user_id]['answer_file_id'] = message.document.file_id
+            answers[user_id]['answer_text'] = None
+            await taskfile(message, user_id)
+        else:
+            await message.answer('Пожалуйста, отправьте файл с ответом.', reply_markup=onlyback_keyboard())
+        return
+    elif step[user_id] == 7.3:
+        answer_text = message.text.strip()
+        if not answer_text:
+            await message.answer('Пожалуйста, введите текст ответа.', reply_markup=onlyback_keyboard())
+            return
+        answers[user_id]['answer_text'] = answer_text
+        answers[user_id]['answer_file_id'] = None
+        await taskfile(message, user_id)
         return
 
 #задача может быть введена с клавы (строка). ограничение по символам какое-то (пять строк?). (это еще будет написано)
 
 async def taskfile(message: Message, user_id: int, is_file=True):
     task_data = answers[user_id].copy()
-    if not is_file:
-        task_text = message.text.strip()
-        if not task_text:
-            await message.answer('Пожалуйста, введите текст задачи.', reply_markup=onlyback_keyboard())
-            return
-        task_data['task_text'] = task_text
-        task_data['id'] = None
-    else:
-        if message.document is None:
-            await message.answer('Пожалуйста, отправьте файл с задачей.', reply_markup=onlyback_keyboard())
-            return
-        task_data['task_text'] = None
-        task_data['id'] = message.document.file_id
+
+    sender_id = user_id
+    title = task_data.get('name')
+    task_text = task_data.get('task_text')
+    task_file_id = task_data.get('task_file_id')
+    answer_text = task_data.get('answer_text')
+    answer_file_id = task_data.get('answer_file_id')
+    authors = task_data.get('authors')
+    tags = task_data.get('tags')
+    olympiad = task_data.get('olympiad')
+    year = task_data.get('year')
+    language = task_data.get('language')
     
-    if str(user_id) not in all_data: #процесс сохранения данных в бд
-        all_data[str(user_id)] = []
-    all_data[str(user_id)].append(task_data)
-    save_data(all_data)
+    add_task(sender_id, title, task_text, task_file_id, answer_text, answer_file_id, authors, tags, olympiad, year, language)
+
     await message.answer('Спасибо! Ваша задача добавлена в базу данных.')
     if user_id in step:
         del step[user_id]
