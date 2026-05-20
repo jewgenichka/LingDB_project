@@ -113,7 +113,7 @@ def sptasks_na_odobrenie():
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute("SELECT id, language FROM tasks WHERE status = 'pending'")
+    cursor.execute("SELECT id, title, authors, tags, olympiad, year, language FROM tasks WHERE status = 'pending'")
     na_ids = cursor.fetchall()
     sp_ids = []
     for sl in na_ids:
