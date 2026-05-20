@@ -9,7 +9,9 @@ from aiogram.types import Message
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from db import dai_authors, dai_olympiads, dai_lang, dai_tags, add_task
 from db import top_search
+from admin import admin
 
+adm = [1365235944]
 step = {}
 answers = {}
 
@@ -867,6 +869,7 @@ async def taskfile(message: Message, user_id: int, is_file=True):
 
 #запуск бота
 async def main():
+    dp.include_router(admin)
     dp.include_router(start_router)
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
