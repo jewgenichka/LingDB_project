@@ -114,3 +114,6 @@ if __name__ == "__main__":
         sp_po_lang = db.task_po_lang(t_lang)
         for t in sp_po_lang:
             print(f"[{t['id']}] {t['title']} {t['language']}")
+    if komanda == 'poid':
+        tid = input('Введите айди задачи: ')
+        print(db.task_po_id(tid))

@@ -360,3 +360,24 @@ def task_po_author(author):
         sp_tasks.append(dict(sl))
     conn.close()
     return sp_tasks
+
+
+def task_po_id(tasks_id):
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT task_text, task_file_id, answer_text, answer_file_id FROM tasks WHERE id = ?", (tasks_id,))
+    task = cursor.fetchone()
+    conn.close
+    if task:
+        if task['task_text']:
+            my_task_text = task['task_text']
+        else:
+            my_task_text = task['task_file_id']
+        if ['answer_text']:
+            my_task_answer = task['answer_text']
+        else:
+            my_task_answer = task['answer_file_id']
+        return my_task_text, my_task_answer
+    else:
+        return None
