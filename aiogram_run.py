@@ -199,7 +199,7 @@ async def callbacks(callback: CallbackQuery):
             if user_id in answers:
                 del answers[user_id]
             await callback.message.edit_reply_markup(None)
-            await callback.message.answer('Вы вернулись в главное меню. Пишите /add, чтобы добавить задачу, или /search, чтобы найти задачу.')
+            await callback.message.answer('Вы вернулись в главное меню. Пишите /add, чтобы добавить задачу, или /search, чтобы найти задачу.', reply_markup=None)
             await callback.answer()
             return
         elif step[user_id] in [1, 1.1]:
@@ -544,10 +544,16 @@ async def taskfile(message: Message, user_id: int, is_file=True):
     answer_text = task_data.get('answer_text')
     answer_file_id = task_data.get('answer_file_id')
     authors = task_data.get('authors')
+    if isinstance(authors, list):
+        authors = ', '.join(authors)
     tags = task_data.get('tags')
+    if isinstance(tags, list):
+        tags = ', '.join(tags)
     olympiad = task_data.get('olympiad')
     year = task_data.get('year')
     language = task_data.get('language')
+    if isinstance(language, list):
+        language = ', '.join(language)
     
     add_task(sender_id, title, task_text, task_file_id, answer_text, answer_file_id, authors, tags, olympiad, year, language)
 
@@ -559,6 +565,12 @@ async def taskfile(message: Message, user_id: int, is_file=True):
 
 @start_router.message(Command('search'))
 async def cmd_search(message: Message):
+    if user_id in step:
+        del step[user_id]
+    if user_id in answers:
+        del answers[user_id]
+    user_id = message.from_user.id
+    step[user_id] = 0
     await message.answer('Помните ли вы название задачи?')
 
 #здесь будет логика поиска задач по базе данных
