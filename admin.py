@@ -15,7 +15,7 @@ admin = Router()
 pending = {}
 index = {}
 
-adm = [1365235944]
+adm = [1365235944, 1689851064]
 
 async def is_admin(user_id: int) -> bool:
     return user_id in adm

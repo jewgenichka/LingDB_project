@@ -11,9 +11,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from decouple import Config, RepositoryEnv
 import os
 
-#pg_db = PostgresHandler(config('PG_LINK'))
-
-ADMINS="1365235944"
+ADMINS="1365235944, 1689851064"
 admins = [int(admin_id) for admin_id in ADMINS.split(',')]
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

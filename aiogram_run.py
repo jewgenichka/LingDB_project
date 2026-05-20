@@ -11,7 +11,7 @@ from db import dai_authors, dai_olympiads, dai_lang, dai_tags, add_task
 from db import top_search
 from admin import admin
 
-adm = [1365235944]
+adm = [1365235944, 1689851064]
 step = {}
 answers = {}
 
