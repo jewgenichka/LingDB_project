@@ -1,5 +1,3 @@
-#поиск: название авторов теги олимпиада год языки. вывод топ-5 подходящих задач
-
 import asyncio
 import uuid
 import os
@@ -44,8 +42,8 @@ def make_params_keyboard(selected_params): #Клавиатура для выбо
         buttons.append([InlineKeyboardButton(text=button_text, callback_data=f"select_{param_key}")])
     
     # Кнопки действий
-    buttons.append([InlineKeyboardButton(text="НАЧАТЬ ПОИСК", callback_data="start_search")])
-    buttons.append([InlineKeyboardButton(text="ОТМЕНА", callback_data="cancel_search")])
+    buttons.append([InlineKeyboardButton(text="Начать поиск", callback_data="start_search")])
+    buttons.append([InlineKeyboardButton(text="Отмена", callback_data="cancel_search")])
     
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -58,9 +56,9 @@ def make_cancel_keyboard(): #Клавиатура для отмены поиск
 def results_keyboard(results, current_index): #Клавиатура для навигации по результатам поиска"
     buttons = []
     if current_index > 0:
-        buttons.append(InlineKeyboardButton(text="⬅️ Назад", callback_data="prev_result"))
+        buttons.append(InlineKeyboardButton(text="Назад", callback_data="prev_result"))
     if current_index < len(results) - 1:
-        buttons.append(InlineKeyboardButton(text="Вперед ➡️", callback_data="next_result"))
+        buttons.append(InlineKeyboardButton(text="Вперед", callback_data="next_result"))
     buttons.append(InlineKeyboardButton(text="Завершить поиск", callback_data="cancel_search"))
     return InlineKeyboardMarkup(inline_keyboard=[buttons])
 
@@ -74,19 +72,17 @@ async def cmd_search(message: Message):
     search_params[user_id] = []
     
     await message.answer(
-        "🔍 *ПОИСК ЗАДАЧИ*\n\n"
+        "Поиск задачи\n\n"
         "Выбери параметры, которые ты помнишь о задаче.\n"
         "Можно выбрать несколько. Нажми на параметр, чтобы добавить или убрать его.\n\n"
-        "Когда выберешь всё, что помнишь, нажми «НАЧАТЬ ПОИСК».",
+        "Когда выберешь всё, что помнишь, нажми «Начать поиск».",
         parse_mode="Markdown",
         reply_markup=make_params_keyboard([])
     )
 
-async def handle_search_callbacks(callback: CallbackQuery):
-    """Обрабатывает все callback-запросы от кнопок поиска"""
+async def handle_search_callbacks(callback: CallbackQuery): #Обрабатывает все коллбеки от кнопок поиска
     user_id = callback.from_user.id
     data = callback.data
-    print(f"DEBUG: handle_search_callbacks, user_id={user_id}, data={data}, search_step={user_id in search_step}")
     
     # Если пользователь не в режиме поиска — игнорируем
     if user_id not in search_step:
@@ -110,7 +106,7 @@ async def handle_search_callbacks(callback: CallbackQuery):
         await callback.answer()
         return
     
-    # Выбор параметра
+    #Выбор параметра
     if data.startswith("select_"):
         param = data.replace("select_", "")
         
@@ -127,20 +123,20 @@ async def handle_search_callbacks(callback: CallbackQuery):
         )
         return
     
-    # Начало поиска
+    #Начало поиска
     if data == "start_search":
         if not search_params[user_id]:
             await callback.answer("Выбери хотя бы один параметр!")
             return
         
-        # Инициализируем сбор значений
+        #Инициализируем сбор значений
         search_values[user_id] = {}
         search_index[user_id] = 0
         
-        # Убираем клавиатуру выбора параметров
+        #Убираем клавиатуру выбора параметров
         await callback.message.edit_reply_markup(None)
         
-        # Начинаем опрос параметров
+        #Начинаем опрос параметров
         await ask_next_param(callback.message, user_id)
         await callback.answer()
         return
@@ -149,15 +145,15 @@ async def ask_next_param(message: Message, user_id: int): #Спрашивает 
     params_list = search_params[user_id]
     current_index = search_index[user_id]
     
-    # Если все параметры уже опрошены — запускаем поиск
+    #Если все параметры уже опрошены — запускаем поиск
     if current_index >= len(params_list):
         await perform_search(message, user_id)
         return
     
-    # Какой параметр сейчас спрашиваем
+    #Какой параметр сейчас спрашиваем
     current_param = params_list[current_index]
     
-    # Словарь с понятными названиями параметров и пояснениями
+    #Словарь с понятными названиями параметров и пояснениями
     param_info = {
         "name": ("название задачи", "Введи название задачи (можно часть слова)"),
         "authors": ("авторов", "Введи авторов через запятую (например: Иванов, Петрова)"),
@@ -180,10 +176,7 @@ async def ask_next_param(message: Message, user_id: int): #Спрашивает 
         reply_markup=make_cancel_keyboard()
     )
 
-async def handle_search_input(message: Message):
-    """
-    Обрабатывает текстовые ответы пользователя на вопросы о параметрах
-    """
+async def handle_search_input(message: Message): # Обрабатывает текстовые ответы пользователя на вопросы о параметрах
     user_id = message.from_user.id
     
     # Проверяем, в режиме ли поиска
@@ -247,8 +240,7 @@ async def perform_search(message: Message, user_id: int):
     # Получаем словарь со значениями всех параметров
     values_dict = search_values[user_id]
     
-    # Важно: нужно создать словарь со ВСЕМИ параметрами (даже теми, что не выбраны)
-    # Для невыбранных параметров значение = None
+    # Важно: нужно создать словарь со ВСЕМИ параметрами (даже теми, что не выбраны), для невыбранных параметров значение = None
     all_params = {
         "name": None,
         "authors": None,
@@ -334,12 +326,16 @@ def onlyback_keyboard():
         [InlineKeyboardButton(text="Назад", callback_data="back")]
     ])
     return keyboard
+
 #клавиатура без кнопки скипа и с единичным выбором
 def noskip_onetag_keyboard(tags_db, chosen_tag):
     buttons = []
 
     for tag in tags_db:
-        chosen = f"✅{tag}" if tag == chosen_tag else tag
+        if tag == chosen_tag:
+            chosen = f"✅{tag}"
+        else:
+            chosen = tag
         buttons.append([InlineKeyboardButton(text=chosen, callback_data=f"one_{tag}")])
     lower_row = [InlineKeyboardButton(text="Готово", callback_data="done"), InlineKeyboardButton(text="Нет в списке", callback_data="custom_tag")]
     buttons.append(lower_row)
@@ -349,7 +345,10 @@ def tags_keyboard(tags_db, chosen_tags):
     buttons = []
 
     for tag in tags_db:
-        chosen = f"✅{tag}" if tag in chosen_tags else tag
+        if tag in chosen_tags:
+            chosen = f"✅{tag}"
+        else:
+            chosen = tag
         buttons.append([InlineKeyboardButton(text=chosen, callback_data=f"tag_{tag}")])
     
     lower_row = [InlineKeyboardButton(text="Готово", callback_data="done"), InlineKeyboardButton(text="Пропустить", callback_data="skip"), InlineKeyboardButton(text="Нет в списке", callback_data="custom_tag")]
@@ -484,10 +483,9 @@ async def cmd_add(message: Message):
 async def callbacks(callback: CallbackQuery):
     user_id = callback.from_user.id
     data = callback.data
-    print(f"DEBUG: callbacks, user_id={user_id}, data={data}, search_step={user_id in search_step}")
 
     if user_id in search_step:
-        await handle_search_callbacks(callback, user_id)
+        await handle_search_callbacks(callback)
         return
 
     if data == "back":
