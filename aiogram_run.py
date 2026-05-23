@@ -445,7 +445,11 @@ def onlyback_keyboard():
     return keyboard
 
 #клавиатура без кнопки скипа и с единичным выбором
-def noskip_onetag_keyboard(tags_db, chosen_tag):
+def noskip_onetag_keyboard(tags_db, chosen_tag, page=0, one_page=5):
+    total = (len(tags_db) + one_page - 1) // one_page
+    start = page * one_page
+    end = one_page + start
+    tags = tags_db[start:end]
     buttons = []
 
     for tag in tags_db:
@@ -454,20 +458,39 @@ def noskip_onetag_keyboard(tags_db, chosen_tag):
         else:
             chosen = tag
         buttons.append([InlineKeyboardButton(text=chosen, callback_data=f"one_{tag}")])
+    row = []
+    if page > 0:
+        row.append(InlineKeyboardButton(text="Назад", callback_data=f"ol_page_{page-1}"))
+    row.append(InlineKeyboardButton(text=f"{page + 1}/{total}", callback_data="dlyakrasoty"))
+    if page < total - 1:
+        row.append(InlineKeyboardButton(text="Вперед", callback_data=f"ol_page_{page+1}"))
+    buttons.append(row)
     lower_row = [InlineKeyboardButton(text="Готово", callback_data="done"), InlineKeyboardButton(text="Нет в списке", callback_data="custom_tag")]
     buttons.append(lower_row)
     return back_keyboard(buttons)
 
-def tags_keyboard(tags_db, chosen_tags):
+def tags_keyboard(tags_db, chosen_tags, page=0, one_page=5):
+    total = (len(tags_db) + one_page - 1) // one_page
+    start = page * one_page
+    end = one_page + start
+    tags = tags_db[start:end]
     buttons = []
 
-    for tag in tags_db:
+    for tag in tags:
         if tag in chosen_tags:
             chosen = f"✅{tag}"
         else:
             chosen = tag
         buttons.append([InlineKeyboardButton(text=chosen, callback_data=f"tag_{tag}")])
-    
+
+    row = []
+    if page > 0:
+        row.append(InlineKeyboardButton(text="Назад", callback_data=f"page_{page-1}"))
+    row.append(InlineKeyboardButton(text=f"{page + 1}/{total}", callback_data="dlyakrasoty"))
+    if page < total - 1:
+        row.append(InlineKeyboardButton(text="Вперед", callback_data=f"page_{page+1}"))
+    buttons.append(row)
+
     lower_row = [InlineKeyboardButton(text="Готово", callback_data="done"), InlineKeyboardButton(text="Пропустить", callback_data="skip"), InlineKeyboardButton(text="Нет в списке", callback_data="custom_tag")]
     buttons.append(lower_row)
     return back_keyboard(buttons)
@@ -481,21 +504,33 @@ async def handle_tags(callback: CallbackQuery, user_id: int):
     
     if not info:
         return
+    if data.startswith("page_"):
+        page = int(data.split("_")[-1])
+        answers[user_id]['page'] = page
+        await callback.message.edit_reply_markup(reply_markup=tags_keyboard(tags_db, answers[user_id][info], page))
+        await callback.answer()
+        return
+    if data.startswith("ol_page_"):
+        page = int(data.split("_")[-1])
+        answers[user_id]['page'] = page
+        await callback.message.edit_reply_markup(reply_markup=noskip_onetag_keyboard(tags_db, answers[user_id]['olympiad'], page))
+        await callback.answer()
+        return
     if step.get(user_id) == 3.1:
         if data.startswith('one_'):
             tag = data[4: ]
             answers[user_id]['olympiad'] = tag
             tags_db = answers[user_id].get('tags_db', [])
             await callback.message.edit_reply_markup(reply_markup=noskip_onetag_keyboard(tags_db, tag))
-            await callback.answer(f'Выбрана олимпиада"{tag}".')
+            await callback.answer(f'Ты выбрал олимпиаду"{tag}".')
         elif data == 'custom_tag':
             step[user_id] = 3.2
             await callback.message.edit_reply_markup(None)
-            await callback.message.answer(f'Введите название олимпиады.', reply_markup=onlyback_keyboard())
+            await callback.message.answer(f'Введи название олимпиады.', reply_markup=onlyback_keyboard())
             await callback.answer()
         elif data == 'done':
             if not answers[user_id].get('olympiad') and not answers[user_id].get('custom_olympiad'):
-                await callback.answer('Пожалуйста, выберите олимпиаду или нажмите "Нет в списке".')
+                await callback.answer('Пожалуйста, выбери олимпиаду или нажми "Нет в списке".')
                 return
             answers[user_id]['olympiad'] = answers[user_id]['olympiad'] if answers[user_id].get('olympiad') else answers[user_id].get('custom_olympiad')
 
@@ -526,14 +561,14 @@ async def handle_tags(callback: CallbackQuery, user_id: int):
     elif data == 'custom_tag':
         step[user_id] = round(step[user_id] + 0.1, 1)
         await callback.message.edit_reply_markup(None)
-        await callback.message.answer(f'Введите свои варианты для "{info}" через запятую, если их несколько.', reply_markup=onlyback_keyboard())
+        await callback.message.answer(f'Введи свои варианты для "{info}" через запятую, если их несколько.', reply_markup=onlyback_keyboard())
         await callback.answer()
 
     elif data == "done":
         all = list(set(answers[user_id].get(custom, []) + answers[user_id].get(info, [])))
         answers[user_id][info] = all
         if not answers[user_id][info]:
-            await callback.answer('Пожалуйста, выберите хотя бы один тег или нажмите "Пропустить".')
+            await callback.answer('Выбери хотя бы один тег или нажми "Пропустить".')
             return
 
         if custom in answers[user_id]:
@@ -548,15 +583,15 @@ async def handle_tags(callback: CallbackQuery, user_id: int):
             del answers[user_id]['next']
         step[user_id] = next
         await callback.message.edit_reply_markup(None)
-        await callback.message.answer(f"Выбранные теги: {', '.join(answers[user_id][info])}")
+        await callback.message.answer(f"Выбранные тэги: {', '.join(answers[user_id][info])}")
         if next == 2:
-            await callback.message.answer('Шаг 2. Добавьте год олимпиады. Если не помните, нажмите "Пропустить", однако тогда вы пропустите также Шаг 3 с указанием олимпиады.', reply_markup=skip_keyboard())
+            await callback.message.answer('Шаг 2. Добавь год олимпиады. Если не помнишь, нажмите "Пропустить", однако тогда вы пропустите также Шаг 3 с указанием олимпиады.', reply_markup=skip_keyboard())
         elif next == 4:
             await get_tags4(callback.message, user_id)
         elif next == 5:
             await get_tags5(callback.message, user_id)
         elif next == 6.1:
-            await callback.message.answer('Шаг 6. Как вы хотите добавить задачу?', reply_markup=files_keyboard())
+            await callback.message.answer('Шаг 6. Как ты хочешь добавить задачу?', reply_markup=files_keyboard())
         await callback.answer()
     elif data == 'skip':
         answers[user_id][info] = []
@@ -575,13 +610,13 @@ async def handle_tags(callback: CallbackQuery, user_id: int):
         await callback.message.edit_reply_markup(None)
 
         if next == 2:
-            await callback.message.answer('Шаг 2. Добавьте год олимпиады. Если не помните, нажмите "Пропустить", однако тогда вы пропустите также Шаг 3 с указанием олимпиады.', reply_markup=skip_keyboard())
+            await callback.message.answer('Шаг 2. Добавь год олимпиады. Если не помнишь, нажми "Пропустить", однако тогда ты пропустишь также Шаг 3 с указанием олимпиады.', reply_markup=skip_keyboard())
         elif next == 4:
             await get_tags4(callback.message, user_id)
         elif next == 5:
             await get_tags5(callback.message, user_id)
         elif next == 6.1:
-            await callback.message.answer('Шаг 6. Как вы хотите добавить задачу?', reply_markup=files_keyboard())
+            await callback.message.answer('Шаг 6. Как ты хочешь добавить задачу?', reply_markup=files_keyboard())
         await callback.answer()
 
 #начало
@@ -593,7 +628,7 @@ async def cmd_start(message: Message):
 async def cmd_add(message: Message):
     user_id = message.from_user.id
     step[user_id] = 0
-    await message.answer('Шаг 0. Введите название задачи. Если не хотите указывать, нажмите "Пропустить".', reply_markup=skip_keyboard())
+    await message.answer('Шаг 0. Введи название задачи. Если не хочешь указывать, нажми "Пропустить".', reply_markup=skip_keyboard())
 
 #все коллбеки
 @start_router.callback_query()
@@ -614,7 +649,7 @@ async def callbacks(callback: CallbackQuery):
             if user_id in answers:
                 del answers[user_id]
             await callback.message.edit_reply_markup(None)
-            await callback.message.answer('Вы вернулись в главное меню. Пишите /add, чтобы добавить задачу, или /search, чтобы найти задачу.', reply_markup=None)
+            await callback.message.answer('Ты вернулся в главное меню. Пиши /add, чтобы добавить задачу, или /search, чтобы найти задачу.', reply_markup=None)
             await callback.answer()
             return
         elif step[user_id] in [1, 1.1]:
@@ -624,7 +659,7 @@ async def callbacks(callback: CallbackQuery):
             if 'custom_authors' in answers[user_id]:
                 del answers[user_id]['custom_authors']
             await callback.message.edit_reply_markup(None)
-            await callback.message.answer('Шаг 0. Введите название задачи. Если не хотите указывать, нажмите "Пропустить".', reply_markup=skip_keyboard())
+            await callback.message.answer('Шаг 0. Введи название задачи. Если не хочешь указывать, нажми "Пропустить".', reply_markup=skip_keyboard())
             await callback.answer()
             return
         elif step[user_id] == 2:
@@ -642,14 +677,14 @@ async def callbacks(callback: CallbackQuery):
             if 'custom_olympiad' in answers[user_id]:
                 del answers[user_id]['custom_olympiad']
             await callback.message.edit_reply_markup(None)
-            await callback.message.answer('Шаг 2. Добавьте год олимпиады. Если не помните, нажмите "Пропустить", однако тогда вы пропустите также Шаг 3 с указанием олимпиады.', parse_mode='Markdown', reply_markup=skip_keyboard())
+            await callback.message.answer('Шаг 2. Добавь год олимпиады. Если не помнишь, нажми "Пропустить", однако тогда ты пропустишь также Шаг 3 с указанием олимпиады.', parse_mode='Markdown', reply_markup=skip_keyboard())
             await callback.answer()
             return
         elif step[user_id] in [4, 4.1, 4.2]:
             if answers[user_id].get('year') is None:
                 step[user_id] = 2
                 await callback.message.edit_reply_markup(None)
-                await callback.message.answer('Шаг 2. Добавьте год олимпиады. Если не помните, нажмите "Пропустить", однако тогда вы пропустите также Шаг 3 с указанием олимпиады.', parse_mode='Markdown', reply_markup=skip_keyboard())
+                await callback.message.answer('Шаг 2. Добавь год олимпиады. Если не помнишь, нажми "Пропустить", однако тогда ты пропустишь также Шаг 3 с указанием олимпиады.', parse_mode='Markdown', reply_markup=skip_keyboard())
                 await callback.answer()
             else:
                 step[user_id] = 3
@@ -696,7 +731,7 @@ async def callbacks(callback: CallbackQuery):
                 del answers[user_id]['custom_authors']
             await callback.message.edit_reply_markup(None)
             step[user_id] = 2
-            await callback.message.answer('Шаг 2. Добавьте год олимпиады. Если не помните, нажмите "Пропустить", однако тогда вы пропустите также Шаг 3 с указанием олимпиады.', parse_mode='Markdown', reply_markup=skip_keyboard())
+            await callback.message.answer('Шаг 2. Добавь год олимпиады. Если не помнишь, нажми "Пропустить", однако тогда ты пропустишь также Шаг 3 с указанием олимпиады.', parse_mode='Markdown', reply_markup=skip_keyboard())
         elif step[user_id] == 2:
             answers[user_id]['year'] = None
             await callback.message.edit_reply_markup(None)
@@ -715,7 +750,7 @@ async def callbacks(callback: CallbackQuery):
                 del answers[user_id]['custom_authors']
             await callback.answer()
             step[user_id] = 2
-            await callback.message.answer('Шаг 2. Добавьте год олимпиады. Если не помните, нажмите "Пропустить", однако тогда вы пропустите также Шаг 3 с указанием олимпиады.', parse_mode='Markdown', reply_markup=skip_keyboard())
+            await callback.message.answer('Шаг 2. Добавь год олимпиады. Если не помнишь, нажми "Пропустить", однако тогда ты пропустишь также Шаг 3 с указанием олимпиады.', parse_mode='Markdown', reply_markup=skip_keyboard())
             return
         elif step[user_id] == 4.1:
             answers[user_id]['language'] = []
@@ -733,7 +768,7 @@ async def callbacks(callback: CallbackQuery):
                 del answers[user_id]['customs']
             await callback.answer()
             step[user_id] = 6.1
-            await callback.message.answer('Шаг 6. Как вы хотите добавить задачу?', reply_markup=files_keyboard())
+            await callback.message.answer('Шаг 6. Как ты хочешь добавить задачу?', reply_markup=files_keyboard())
             return
 
     elif step.get(user_id) == 1.1:
@@ -748,11 +783,11 @@ async def callbacks(callback: CallbackQuery):
         if data == "file":
             step[user_id] = 6.2
             await callback.message.edit_reply_markup(None)
-            await callback.message.answer('Пожалуйста, отправьте файл с задачей.', reply_markup=onlyback_keyboard())
+            await callback.message.answer('Пожалуйста, отправь файл с задачей.', reply_markup=onlyback_keyboard())
         elif data == "text":
             step[user_id] = 6.3
             await callback.message.edit_reply_markup(None)
-            await callback.message.answer('Пожалуйста, введите текст задачи.', reply_markup=onlyback_keyboard())
+            await callback.message.answer('Пожалуйста, введи текст задачи.', reply_markup=onlyback_keyboard())
         elif data == 'back':
             step[user_id] = 5
             await callback.message.edit_reply_markup(None)
@@ -762,15 +797,15 @@ async def callbacks(callback: CallbackQuery):
         if data == 'file':
             step[user_id] = 7.2
             await callback.message.edit_reply_markup(None)
-            await callback.message.answer('Пожалуйста, отправьте файл с ответом.', reply_markup=onlyback_keyboard())
+            await callback.message.answer('Пожалуйста, отправь файл с ответом.', reply_markup=onlyback_keyboard())
         elif data == 'text':
             step[user_id] = 7.3
             await callback.message.edit_reply_markup(None)
-            await callback.message.answer('Пожалуйста, введите текст ответа.', reply_markup=onlyback_keyboard())
+            await callback.message.answer('Пожалуйста, введи текст ответа.', reply_markup=onlyback_keyboard())
         elif data == 'back':
             step[user_id] = 6.1
             await callback.message.edit_reply_markup(None)
-            await callback.message.answer('Шаг 6. Как вы хотите добавить задачу?', reply_markup=files_keyboard())
+            await callback.message.answer('Шаг 6. Как ты хочешь добавить задачу?', reply_markup=files_keyboard())
         return
     await callback.answer()
     return
@@ -790,7 +825,7 @@ async def get_tags1(message: Message, user_id: int):
     answers[user_id]['next'] = 2
 
     step[user_id] = 1.1
-    await message.answer('Шаг 1. Выберите авторов задачи из списка. Если не хотите указывать, нажмите "Пропустить".', reply_markup=tags_keyboard(tags_db, answers[user_id]['authors']))
+    await message.answer('Шаг 1. Выбери авторов задачи из списка. Если не хочешь указывать, нажми "Пропустить".', reply_markup=tags_keyboard(tags_db, answers[user_id]['authors']))
 
 async def get_tags3(message: Message, user_id: int):
     tags_db = dai_olympiads() #олимпиады из бд
@@ -807,7 +842,7 @@ async def get_tags3(message: Message, user_id: int):
     answers[user_id]['next'] = 4
 
     step[user_id] = 3.1
-    await message.answer('Шаг 3. Выберите олимпиаду, на которой встретилась задача, из списка. Этот шаг обязателен, так как вы указали год.', reply_markup=noskip_onetag_keyboard(tags_db, answers[user_id]['olympiad']))
+    await message.answer('Шаг 3. Выбери олимпиаду, на которой встретилась задача, из списка. Этот шаг обязателен, так как ты указал год.', reply_markup=noskip_onetag_keyboard(tags_db, answers[user_id]['olympiad']))
 
 async def get_tags4(message: Message, user_id: int):
     tags_db = dai_lang() #языки из бд
@@ -824,10 +859,10 @@ async def get_tags4(message: Message, user_id: int):
     answers[user_id]['next'] = 5
 
     step[user_id] = 4.1
-    await message.answer('Шаг 4. Выберите из списка язык, которому посвящена задача. Если не хотите указывать, нажмите "Пропустить".', reply_markup=tags_keyboard(tags_db, answers[user_id]['language']))
+    await message.answer('Шаг 4. Выбери из списка язык, которому посвящена задача. Если не хочешь указывать, нажми "Пропустить".', reply_markup=tags_keyboard(tags_db, answers[user_id]['language']))
 
 async def get_tags5(message: Message, user_id: int):
-    tags_db = dai_tags() #теги из бд
+    tags_db = dai_tags() #тэги из бд
     if user_id not in answers:
         answers[user_id] = {}
     if 'tags' not in answers[user_id]:
@@ -841,7 +876,7 @@ async def get_tags5(message: Message, user_id: int):
     answers[user_id]['next'] = 6.1
 
     step[user_id] = 5.1
-    await message.answer('Шаг 5. Выберите теги, связанные с задачей. Если не хотите указывать, нажмите "Пропустить".', reply_markup=tags_keyboard(tags_db, answers[user_id]['tags']))
+    await message.answer('Шаг 5. Выбери тэги, связанные с задачей. Если не хочешь указывать, нажми "Пропустить".', reply_markup=tags_keyboard(tags_db, answers[user_id]['tags']))
 
 @start_router.message()
 async def answer_message(message: Message):
@@ -876,9 +911,9 @@ async def answer_message(message: Message):
                 step[user_id] = 3
                 await get_tags3(message, user_id)
             else:
-                await message.answer('Пожалуйста, введите корректный год.')
+                await message.answer('Пожалуйста, введи корректный год.')
         else:
-            await message.answer('Пожалуйста, введите год числом.')
+            await message.answer('Пожалуйста, введи год числом.')
     elif step[user_id] == 3:
         await get_tags3(message, user_id)
     elif step[user_id] == 4:
@@ -897,7 +932,7 @@ async def answer_message(message: Message):
 
         answers[user_id]['custom_olympiad'] = text.strip()
 
-        await message.answer(f'Вы указали олимпиаду "{text.strip()}". Если это верно, нажмите "Готово". Если вы хотите указать другую, выберите ее из списка.')
+        await message.answer(f'Ты указал олимпиаду "{text.strip()}". Если это верно, нажми "Готово". Если ты хочешь указать другую, выбери ее из списка.')
 
         step[user_id] = 3.1
         await get_tags3(message, user_id)
@@ -919,19 +954,19 @@ async def answer_message(message: Message):
             answers[user_id]['task_file_id'] = message.document.file_id
             answers[user_id]['task_text'] = None
             step[user_id] = 7.1
-            await message.answer('Шаг 7. Как вы хотите добавить ответ на задачу?', reply_markup=files_keyboard())
+            await message.answer('Шаг 7. Как ты хочешь добавить ответ на задачу?', reply_markup=files_keyboard())
         else:
-            await message.answer('Пожалуйста, отправьте файл с задачей.', reply_markup=onlyback_keyboard())
+            await message.answer('Пожалуйста, отправь файл с задачей.', reply_markup=onlyback_keyboard())
         return
     elif step[user_id] == 6.3:
         task_text = message.text.strip()
         if not task_text:
-            await message.answer('Пожалуйста, введите текст задачи.', reply_markup=onlyback_keyboard())
+            await message.answer('Пожалуйста, введи текст задачи.', reply_markup=onlyback_keyboard())
             return
         answers[user_id]['task_text'] = task_text
         answers[user_id]['task_file_id'] = None
         step[user_id] = 7.1
-        await message.answer('Шаг 7. Как вы хотите добавить ответ на задачу?', reply_markup=files_keyboard())
+        await message.answer('Шаг 7. Как ты хочешь добавить ответ на задачу?', reply_markup=files_keyboard())
         return
     elif step[user_id] == 7.2:
         if message.document is not None:
@@ -939,19 +974,17 @@ async def answer_message(message: Message):
             answers[user_id]['answer_text'] = None
             await taskfile(message, user_id)
         else:
-            await message.answer('Пожалуйста, отправьте файл с ответом.', reply_markup=onlyback_keyboard())
+            await message.answer('Пожалуйста, отправь файл с ответом.', reply_markup=onlyback_keyboard())
         return
     elif step[user_id] == 7.3:
         answer_text = message.text.strip()
         if not answer_text:
-            await message.answer('Пожалуйста, введите текст ответа.', reply_markup=onlyback_keyboard())
+            await message.answer('Пожалуйста, введи текст ответа.', reply_markup=onlyback_keyboard())
             return
         answers[user_id]['answer_text'] = answer_text
         answers[user_id]['answer_file_id'] = None
         await taskfile(message, user_id)
         return
-
-#задача может быть введена с клавы (строка). ограничение по символам какое-то (пять строк?). (это еще будет написано)
 
 async def taskfile(message: Message, user_id: int, is_file=True):
     task_data = answers[user_id].copy()
@@ -976,7 +1009,7 @@ async def taskfile(message: Message, user_id: int, is_file=True):
     
     add_task(sender_id, title, task_text, task_file_id, answer_text, answer_file_id, authors, tags, olympiad, year, language)
 
-    await message.answer('Спасибо! Ваша задача добавлена в базу данных.')
+    await message.answer('Спасибо! Твоя задача добавлена в базу данных.')
     if user_id in step:
         del step[user_id]
     if user_id in answers:
