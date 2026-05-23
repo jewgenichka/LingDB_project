@@ -1,14 +1,15 @@
 import asyncio
 import uuid
 import os
+import re
+import sqlite3
 
 from create_bot import bot, dp
 from aiogram import Router, F
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from db import dai_authors, dai_olympiads, dai_lang, dai_tags, add_task
-from db import top_search
+from db import dai_authors, dai_olympiads, dai_lang, dai_tags, add_task, top_search, vivod_na_check, DB
 from admin import admin
 
 adm = [1365235944, 1689851064]
@@ -18,13 +19,20 @@ answers = {}
 start_router = Router()
 
 #НАЧАЛО ПОИСКА ЗАДАЧИ
-search_step = {}      # этап поиска: 'choosing_params', 'selecting_authors', 'selecting_tags' и т.д.
-search_params = {}    # выбранные пользователем параметры (словарь: параметр -> список выбранных значений)
-search_pending_params = {}  # параметры, которые ещё нужно обработать (для последовательного опроса)
-search_results = {}   # результаты поиска для каждого пользователя
+search_step = {}      
+search_params = {}  
+search_values = {}
+search_index = {}
+search_results = {}
+search_current_index = {}
 
-def make_params_keyboard(selected_params):
-    """Клавиатура для выбора параметров поиска"""
+
+def escape_markdown_v2(text: str) -> str:
+    special_chars = r'([_*\[\]()~`>#+\-=|{}.!])'
+    return re.sub(special_chars, r'\\\1', text)
+
+#клавиатура для выбора параметров поиска
+def make_params_keyboard(selected_params): 
     all_params = {
         "name": "Название задачи",
         "authors": "Авторы",
@@ -42,313 +50,357 @@ def make_params_keyboard(selected_params):
             button_text = f"⬜ {param_label}"
         buttons.append([InlineKeyboardButton(text=button_text, callback_data=f"select_{param_key}")])
     
-    buttons.append([InlineKeyboardButton(text="НАЧАТЬ ПОИСК", callback_data="start_search")])
-    buttons.append([InlineKeyboardButton(text="ОТМЕНА", callback_data="cancel_search")])
+    # Кнопки действий
+    buttons.append([InlineKeyboardButton(text="Начать поиск", callback_data="start_search")])
+    buttons.append([InlineKeyboardButton(text="Отмена", callback_data="cancel_search")])
     
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-def make_selection_keyboard(items, chosen_items, param_type, title):
-    """
-    Создаёт клавиатуру для выбора значений параметра
-    items: список доступных значений из БД
-    chosen_items: список уже выбранных значений
-    param_type: тип параметра (authors, tags, olympiad, language)
-    title: понятное название для отображения
-    """
+#клавиатура для отмены поиска
+def make_cancel_keyboard():
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Отменить поиск", callback_data="cancel_search")]
+    ])
+    return keyboard
+
+#новая клавиатура только с кнопкой "Назад"
+def make_back_keyboard(): 
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Назад", callback_data="back_to_params")]
+    ])
+    return keyboard
+
+def make_single_choice_keyboard(items, chosen_item): #для единичного выбора олимпиады
     buttons = []
-    
-    # Добавляем кнопки для каждого значения
+    for item in items:
+        if item == chosen_item:
+            button_text = f"✅ {item}"
+        else:
+            button_text = f"⬜ {item}"
+        buttons.append([InlineKeyboardButton(text=button_text, callback_data=f"choose_olympiad_{item}")])
+
+    lower_row = [InlineKeyboardButton(text="Готово", callback_data="done_olympiad"), 
+                 InlineKeyboardButton(text="Пропустить", callback_data="skip_olympiad"),
+                 InlineKeyboardButton(text="Назад", callback_data="back_to_params")]
+    buttons.append(lower_row)
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+#функция для множественного выбора (авторы, теги, языки)
+def multi_choice_keyboard(items, chosen_items, param_type):
+    buttons = []
     for item in items:
         if item in chosen_items:
             button_text = f"✅ {item}"
         else:
             button_text = f"⬜ {item}"
-        buttons.append([InlineKeyboardButton(text=button_text, callback_data=f"choose_{param_type}_{item}")])
-    
-    # Кнопки действий
-    action_buttons = []
+        buttons.append([InlineKeyboardButton(text=button_text, callback_data=f"choose_multi_{param_type}_{item}")])
+    lower_row = []
     if chosen_items:
-        action_buttons.append(InlineKeyboardButton(text="ГОТОВО", callback_data=f"done_{param_type}"))
-    action_buttons.append(InlineKeyboardButton(text="ПРОПУСТИТЬ", callback_data=f"skip_{param_type}"))
-    action_buttons.append(InlineKeyboardButton(text="НАЗАД", callback_data="back_to_params"))
-    
-    buttons.append(action_buttons)
-    
+        lower_row.append(InlineKeyboardButton(text="Готово", callback_data=f"done_multi_{param_type}"))
+    lower_row.append(InlineKeyboardButton(text="Пропустить", callback_data=f"skip_multi_{param_type}"))
+    lower_row.append(InlineKeyboardButton(text="Назад", callback_data="back_to_params"))
+    buttons.append(lower_row)
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-def make_cancel_keyboard():
-    """Клавиатура для отмены поиска"""
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Отменить поиск", callback_data="cancel_search")]
-    ])
-
-def make_back_keyboard():
-    """Клавиатура только с кнопкой назад"""
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_params")]
-    ])
+#клавиатура для навигации по результатам поиска"
+def results_keyboard(results, current_index): 
+    buttons = []
+    if current_index > 0:
+        buttons.append(InlineKeyboardButton(text="Назад", callback_data="prev_result"))
+    if current_index < len(results) - 1:
+        buttons.append(InlineKeyboardButton(text="Вперед", callback_data="next_result"))
+    buttons.append(InlineKeyboardButton(text="Завершить поиск", callback_data="cancel_search"))
+    return InlineKeyboardMarkup(inline_keyboard=[buttons])
 
 @start_router.message(Command('search'))
 async def cmd_search(message: Message):
-    """Начало поиска: выбор параметров"""
-    user_id = message.from_user.id
-    
+    user_id = message.from_user.id   
     search_step[user_id] = "choosing_params"
-    search_params[user_id] = {}  # словарь: параметр -> список выбранных значений
-    search_pending_params[user_id] = []  # очередь параметров для опроса
+    search_params[user_id] = []
     
     await message.answer(
-        "*ПОИСК ЗАДАЧИ*\n\n"
+        "Поиск задачи\n\n"
         "Выбери параметры, которые ты помнишь о задаче.\n"
         "Можно выбрать несколько. Нажми на параметр, чтобы добавить или убрать его.\n\n"
-        "Когда выберешь всё, что помнишь, нажми «НАЧАТЬ ПОИСК».",
+        "Когда выберешь всё, что помнишь, нажми «Начать поиск».",
         parse_mode="Markdown",
         reply_markup=make_params_keyboard([])
     )
 
-async def handle_search_callbacks(callback: CallbackQuery):
-    """Обрабатывает все коллбеки от кнопок поиска"""
+async def handle_search_callbacks(callback: CallbackQuery): #Обрабатывает все коллбеки от кнопок поиска
     user_id = callback.from_user.id
     data = callback.data
-    
+
     if user_id not in search_step:
         await callback.answer("Сначала введи /search")
         return
     
-    # Отмена поиска
+    #возврат к выбору параметров
+    if data == "back_to_params":
+        search_step[user_id] = "choosing_params"
+        await callback.message.edit_reply_markup(None)
+        await callback.message.answer(
+            "Выбери параметры для поиска:",
+            reply_markup=make_params_keyboard(search_params[user_id])
+        )
+        await callback.answer()
+        return
+    
+    #отмена поиска
     if data == "cancel_search":
-        # Очищаем все данные пользователя
-        for d in [search_step, search_params, search_pending_params]:
-            if user_id in d:
-                del d[user_id]
+        if user_id in search_step:
+            del search_step[user_id]
+        if user_id in search_params:
+            del search_params[user_id]
+        if user_id in search_values:
+            del search_values[user_id]
+        if user_id in search_index:
+            del search_index[user_id]
         
         await callback.message.edit_reply_markup(None)
         await callback.message.answer("Поиск отменён. Используй /search для нового поиска.")
         await callback.answer()
         return
     
-    # Возврат к выбору параметров
-    if data == "back_to_params":
-        search_step[user_id] = "choosing_params"
-        await callback.message.edit_reply_markup(None)
-        await callback.message.answer(
-            "Выбери параметры для поиска:",
-            reply_markup=make_params_keyboard(list(search_params[user_id].keys()))
-        )
-        await callback.answer()
-        return
-    
-    # Выбор параметра (на этапе choosing_params)
-    if data.startswith("select_") and search_step[user_id] == "choosing_params":
+    #выбор параметра
+    if data.startswith("select_"):
         param = data.replace("select_", "")
         
         if param in search_params[user_id]:
-            # Убираем параметр
-            del search_params[user_id][param]
+            search_params[user_id].remove(param)
             await callback.answer(f"Убран параметр: {param}")
         else:
-            # Добавляем параметр
-            search_params[user_id][param] = []  # пока пустой список значений
+            search_params[user_id].append(param)
             await callback.answer(f"Добавлен параметр: {param}")
         
+        #обновляем клавиатуру
         await callback.message.edit_reply_markup(
-            reply_markup=make_params_keyboard(list(search_params[user_id].keys()))
+            reply_markup=make_params_keyboard(search_params[user_id])
         )
         return
     
-    # Начало поиска (сбор значений)
+    #обработка выбора олимпиады (единичный выбор)
+    if data.startswith("choose_olympiad_"):
+        value = data.replace("choose_olympiad_", "")
+        search_values[user_id]["olympiad"] = value
+        await callback.answer(f"Выбрана олимпиада: {value}")
+        
+        items = dai_olympiads()
+        await callback.message.edit_reply_markup(
+            reply_markup=make_single_choice_keyboard(items, value)
+        )
+        return
+    
+    #завершение выбора олимпиады
+    if data == "done_olympiad":
+        if "olympiad" not in search_values[user_id]:
+            await callback.answer("Пожалуйста, выберите олимпиаду или нажмите «Пропустить»!")
+            return
+        search_index[user_id] += 1
+        await callback.message.edit_reply_markup(None)
+        await next_param(callback.message, user_id)
+        await callback.answer()
+        return
+    
+    #пропуск олимпиады
+    if data == "skip_olympiad":
+        search_values[user_id]["olympiad"] = None
+        search_index[user_id] += 1
+        await callback.message.edit_reply_markup(None)
+        await next_param(callback.message, user_id)
+        await callback.answer()
+        return
+    
+    #обработка множественного выбора (авторы, теги, языки)
+    if data.startswith("choose_multi_"):
+        parts = data.split("_", 3)  #['choose', 'multi', 'authors', 'Иванов']
+        if len(parts) >= 4:
+            param_type = parts[2]
+            value = parts[3]
+            
+            if param_type not in search_values[user_id]:
+                search_values[user_id][param_type] = []
+            
+            if value in search_values[user_id][param_type]:
+                search_values[user_id][param_type].remove(value)
+                await callback.answer(f"Убран {param_type}: {value}")
+            else:
+                search_values[user_id][param_type].append(value)
+                await callback.answer(f"Добавлен {param_type}: {value}")
+            
+            #обновляем клавиатуру
+            if param_type == "authors":
+                items = dai_authors()
+            elif param_type == "tags":
+                items = dai_tags()
+            else:  # language
+                items = dai_lang()
+            
+            await callback.message.edit_reply_markup(
+                reply_markup=multi_choice_keyboard(items, search_values[user_id][param_type], param_type)
+            )
+        return
+    
+    #завершение множественного выбора
+    if data.startswith("done_multi_"):
+        param_type = data.replace("done_multi_", "")
+        if param_type not in search_values[user_id]:
+            search_values[user_id][param_type] = []
+        search_index[user_id] += 1
+        await callback.message.edit_reply_markup(None)
+        await next_param(callback.message, user_id)
+        await callback.answer()
+        return
+    
+    #пропуск множественного выбора
+    if data.startswith("skip_multi_"):
+        param_type = data.replace("skip_multi_", "")
+        search_values[user_id][param_type] = []
+        search_index[user_id] += 1
+        await callback.message.edit_reply_markup(None)
+        await next_param(callback.message, user_id)
+        await callback.answer()
+        return
+
+    #начало поиска
     if data == "start_search":
         if not search_params[user_id]:
             await callback.answer("Выбери хотя бы один параметр!")
             return
         
-        # Создаём очередь параметров для опроса
-        pending = list(search_params[user_id].keys())
-        search_pending_params[user_id] = pending
+        #инициализируем сбор значений
+        search_values[user_id] = {}
+        search_index[user_id] = 0
         
+        #убираем клавиатуру выбора параметров
         await callback.message.edit_reply_markup(None)
-        await ask_next_search_param(callback.message, user_id)
-        await callback.answer()
-        return
-    
-    # Обработка выбора значений (для авторов, тегов, олимпиад, языков)
-    if data.startswith("choose_"):
-        # Формат: choose_authors_Иванов
-        parts = data.split("_", 2)  # ['choose', 'authors', 'Иванов']
-        if len(parts) >= 3:
-            param_type = parts[1]
-            value = parts[2]
-            
-            if value in search_params[user_id].get(param_type, []):
-                search_params[user_id][param_type].remove(value)
-                await callback.answer(f"Убран: {value}")
-            else:
-                search_params[user_id][param_type].append(value)
-                await callback.answer(f"Добавлен: {value}")
-            
-            # Обновляем клавиатуру с актуальным списком
-            await update_selection_keyboard(callback, user_id, param_type)
-        return
-    
-    # Завершение выбора для параметра
-    if data.startswith("done_"):
-        param_type = data.replace("done_", "")
-        # Переходим к следующему параметру
-        if search_pending_params[user_id]:
-            search_pending_params[user_id].pop(0)  # убираем текущий параметр
-        
-        await callback.message.edit_reply_markup(None)
-        await ask_next_search_param(callback.message, user_id)
-        await callback.answer()
-        return
-    
-    # Пропуск параметра
-    if data.startswith("skip_"):
-        param_type = data.replace("skip_", "")
-        # Очищаем значения для этого параметра
-        if param_type in search_params[user_id]:
-            search_params[user_id][param_type] = []  # пустой список = пропустили
-        
-        if search_pending_params[user_id]:
-            search_pending_params[user_id].pop(0)
-        
-        await callback.message.edit_reply_markup(None)
-        await ask_next_search_param(callback.message, user_id)
+
+        await next_param(callback.message, user_id)
         await callback.answer()
         return
 
-async def update_selection_keyboard(callback: CallbackQuery, user_id: int, param_type: str):
-    """Обновляет клавиатуру выбора значений для параметра"""
-    # Получаем данные из БД в зависимости от типа параметра
-    if param_type == "authors":
-        items = dai_authors()
-        title = "авторы"
-    elif param_type == "tags":
-        items = dai_tags()
-        title = "теги"
-    elif param_type == "olympiad":
-        items = dai_olympiads()
-        title = "олимпиады"
-    elif param_type == "language":
-        items = dai_lang()
-        title = "языки"
-    else:
-        return
+async def next_param(message: Message, user_id: int): #Спрашивает пользователя о значении следующего параметра
+    params_list = search_params[user_id]
+    current_index = search_index[user_id]
     
-    chosen = search_params[user_id].get(param_type, [])
-    
-    await callback.message.edit_reply_markup(
-        reply_markup=make_selection_keyboard(items, chosen, param_type, title)
-    )
-
-async def ask_next_search_param(message: Message, user_id: int):
-    """Спрашивает следующий параметр (показывает клавиатуру выбора или запрашивает текстовый ввод)"""
-    pending = search_pending_params.get(user_id, [])
-    
-    if not pending:
-        # Все параметры обработаны -> запускаем поиск
+    #если все параметры уже опрошены — запускаем поиск
+    if current_index >= len(params_list):
         await perform_search(message, user_id)
         return
+    current_param = params_list[current_index]
     
-    current_param = pending[0]
+    #для олимпиады показываем клавиатуру с единичным выбором
+    if current_param == "olympiad":
+        items = dai_olympiads()
+        chosen = search_values[user_id].get(current_param)
+        search_step[user_id] = f"selecting_{current_param}"
+        
+        await message.answer(
+            f"Вопрос {current_index + 1} из {len(params_list)}\n\n"
+            f"Ты выбрал параметр: олимпиаду\n\n"
+            f"Выбери олимпиаду из списка (можно только одну):",
+            parse_mode="Markdown",
+            reply_markup=make_single_choice_keyboard(items, chosen)
+        )
+        return
     
-    # Параметры, которые требуют выбора из кнопок
-    selection_params = ["authors", "tags", "olympiad", "language"]
-    
-    if current_param in selection_params:
-        # Показываем клавиатуру для выбора
+    #для авторов, тегов, языков - множественный выбор из кнопок
+    if current_param in ["authors", "tags", "language"]:
         if current_param == "authors":
             items = dai_authors()
             title = "авторов"
         elif current_param == "tags":
             items = dai_tags()
             title = "теги"
-        elif current_param == "olympiad":
-            items = dai_olympiads()
-            title = "олимпиаду"
-        elif current_param == "language":
+        else:  # language
             items = dai_lang()
             title = "язык"
         
-        chosen = search_params[user_id].get(current_param, [])
-        
+        chosen = search_values[user_id].get(current_param, [])
         search_step[user_id] = f"selecting_{current_param}"
         
         await message.answer(
-            f"*Выбери {title}*\n\n"
-            f"Можно выбрать несколько. Нажми на кнопку, чтобы добавить или убрать.\n"
-            f"Когда закончишь, нажми «ГОТОВО».\n"
-            f"Если не помнишь, нажми «ПРОПУСТИТЬ».",
+            f"Вопрос {current_index + 1} из {len(params_list)}\n\n"
+            f"Ты выбрал параметр: {title}\n\n"
+            f"Выбери нужное (можно несколько):",
             parse_mode="Markdown",
-            reply_markup=make_selection_keyboard(items, chosen, current_param, title)
+            reply_markup=multi_choice_keyboard(items, chosen, current_param)
         )
+        return
     
-    elif current_param == "name":
-        search_step[user_id] = "asking_name"
-        await message.answer(
-            f"*Введи название задачи*\n\n"
-            f"Можно ввести часть слова или полное название.",
-            parse_mode="Markdown",
-            reply_markup=make_back_keyboard()
-        )
+     #для названия и года - текстовый ввод
+    param_info = {
+        "name": ("название задачи", "Введи название задачи (можно часть слова)"),
+        "year": ("год", "Введи год (например: 2024)")
+    }
     
-    elif current_param == "year":
-        search_step[user_id] = "asking_year"
-        await message.answer(
-            f"*Введи год*\n\n"
-            f"Например: 2024",
-            parse_mode="Markdown",
-            reply_markup=make_back_keyboard()
-        )
+    param_name, prompt_text = param_info.get(current_param, (current_param, "Введи значение"))
+    
+    search_step[user_id] = f"asking_{current_param}"
+    
+    await message.answer(
+        f"Вопрос {current_index + 1} из {len(params_list)}\n\n"
+        f"Ты выбрал параметр: {param_name}\n\n"
+        f"{prompt_text}",
+        parse_mode="Markdown",
+        reply_markup=make_back_keyboard()
+    )
 
-async def handle_search_input(message: Message):
-    """Обрабатывает текстовые ответы пользователя (название, год)"""
+async def handle_search_input(message: Message): # Обрабатывает текстовые ответы пользователя на вопросы о параметрах
     user_id = message.from_user.id
     
+    #проверяем, в режиме ли поиска
     if user_id not in search_step:
         return
     
     step = search_step[user_id]
-    raw_value = message.text.strip()
     
-    if step == "asking_name":
+    #если мы в процессе опроса параметров
+    if step.startswith("asking_"):
+        current_param = step.replace("asking_", "")
+        
+        #получаем введённый текст
+        raw_value = message.text.strip()
+        
         if not raw_value:
-            await message.answer("Пожалуйста, введи название.", reply_markup=make_back_keyboard())
+            await message.answer("Пожалуйста, введи значение.", reply_markup=make_back_keyboard())
             return
         
-        # Сохраняем название
-        current_param = search_pending_params[user_id][0]
-        search_params[user_id][current_param] = [raw_value]
-        
-        # Переходим к следующему параметру
-        search_pending_params[user_id].pop(0)
-        await ask_next_search_param(message, user_id)
-    
-    elif step == "asking_year":
-        try:
-            year = int(raw_value)
-            if 1800 <= year <= 2030:
-                current_param = search_pending_params[user_id][0]
-                search_params[user_id][current_param] = [year]
-                
-                search_pending_params[user_id].pop(0)
-                await ask_next_search_param(message, user_id)
-            else:
+        #преобразуем ввод в список в зависимости от типа параметра
+        if current_param in ["authors", "tags", "language"]:
+            #для этих параметров разбиваем по запятым и чистим пробелы
+            value_list = [item.strip() for item in raw_value.split(",") if item.strip()]
+        elif current_param == "year":
+            try:
+                year = int(raw_value)
+                if 1800 <= year <= 2030:
+                    value_list = [year]
+                else:
+                    await message.answer(
+                        "Год должен быть в диапазоне от 1800 до 2030. Попробуй ещё раз.",
+                        reply_markup=make_back_keyboard()
+                    )
+                    return
+            except ValueError:
                 await message.answer(
-                    "Год должен быть в диапазоне от 1800 до 2030. Попробуй ещё раз.",
+                    "Пожалуйста, введи год числом (например: 2024).",
                     reply_markup=make_back_keyboard()
                 )
-        except ValueError:
-            await message.answer(
-                "Пожалуйста, введи год числом (например: 2024).",
-                reply_markup=make_back_keyboard()
-            )
+                return
+        else:
+            #для name — просто строка в списке
+            value_list = [raw_value]
+        
+        search_values[user_id][current_param] = value_list
+        search_index[user_id] += 1
+        
+        #спрашиваем следующий параметр
+        await next_param(message, user_id)
+        return
 
+#словарь со значениями всех параметров
 async def perform_search(message: Message, user_id: int):
-    """Выполняет поиск с собранными значениями параметров"""
-    values_dict = search_params[user_id]
-    
-    # Создаём полный словарь со всеми параметрами
+    values_dict = search_values[user_id]
     all_params = {
         "name": None,
         "authors": None,
@@ -358,15 +410,18 @@ async def perform_search(message: Message, user_id: int):
         "language": None
     }
     
-    # Заполняем выбранные параметры (значения уже в виде списков)
-    for param, value_list in values_dict.items():
-        if value_list:  # если не пустой список
-            all_params[param] = value_list
+    #заполняем только те параметры, которые пользователь указал
+    for param, value in values_dict.items():
+        if param == "olympiad":
+            all_params[param] = [value] if value else None
+        else:
+            all_params[param] = value
     
+    #показываем пользователю, что ищем
     status_message = await message.answer("Ищу задачи в базе данных... Подожди немного.")
     
     try:
-        # Вызываем функцию поиска из db.py
+        #функция из db.py
         results = top_search(
             all_params["name"],
             all_params["authors"],
@@ -376,22 +431,23 @@ async def perform_search(message: Message, user_id: int):
             all_params["language"]
         )
         
+        #удаляем сообщение "Ищу..."
         await status_message.delete()
         
         if not results:
             await message.answer(
-                "*Задачи не найдены*\n\n"
-                "Попробуй:\n"
-                "• выбрать другие параметры\n"
-                "• указать более общие значения\n"
-                "• использовать /search для нового поиска",
-                parse_mode="Markdown"
-            )
+                "Задачи не найдены\n\n"
+                "Попробуй выбрать другие параметры или ипользовать /search для нового поиска",
+                )
         else:
-            # Показываем результаты
-            response = f"*Найдено задач: {len(results)}*\n\n"
+            #показываем результаты (топ-5)
+            response = f"Найдено задач: {len(results)}\n\n"
             for i, task in enumerate(results[:5], 1):
-                response += f"*{i}. {task.get('name', 'Без названия')}*\n"
+                task_id = task.get('id', '')
+                task_title = task.get('title')
+                if not task_title:  #пофиксили None
+                    task_title = 'Без названия'
+                response += f"{i}. {task_title} (id: {task_id})\n"
                 if task.get('authors'):
                     authors_str = ", ".join(task['authors']) if isinstance(task['authors'], list) else task['authors']
                     response += f"Авторы: {authors_str}\n"
@@ -408,18 +464,293 @@ async def perform_search(message: Message, user_id: int):
                     response += f"Теги: {tags_str}\n"
                 response += "\n"
             
-            await message.answer(response[:4000], parse_mode="Markdown")
-    
+            response += "Чтобы посмотреть полную задачу, введите её id\n"
+            response += "Чтобы начать новый поиск, введите /search"
+            
+            await message.answer(response, parse_mode="Markdown")
+            
+            #ждём, когда введут айдишник
+            search_results[user_id] = results
+            search_step[user_id] = "waiting_for_id"
+            #убираем всё лишнее
+            if user_id in search_params:
+                del search_params[user_id]
+            if user_id in search_values:
+                del search_values[user_id]
+            if user_id in search_index:
+                del search_index[user_id]
     except Exception as e:
         await status_message.delete()
         await message.answer(f"Ошибка при поиске: {str(e)}")
-    
-    finally:
-        # Очищаем все данные поиска для пользователя
-        for d in [search_step, search_params, search_pending_params]:
+        for d in [search_step, search_params, search_values, search_index, search_results]:
             if user_id in d:
-                del d[user_id]
+                del d[user_id] #при ошибке убрать всё, что осталось
+
+async def show_full_task(message: Message, task: dict):
+    #показывает полную информацию о задаче по её id
+    
+    task_id = task.get('id', '')
+    title = task.get('title')
+    if not title:
+        title = 'Без названия'
+    
+    response = f"{title} (id: {task_id})\n\n"
+    
+    if task.get('authors'):
+        authors_str = ", ".join(task['authors']) if isinstance(task['authors'], list) else task['authors']
+        response += f"Авторы: {authors_str}\n"
+    
+    if task.get('olympiad'):
+        response += f"Олимпиада: {task['olympiad']}"
+        if task.get('year'):
+            response += f" ({task['year']})"
+        response += "\n"
+    
+    if task.get('language'):
+        langs_str = ", ".join(task['language']) if isinstance(task['language'], list) else task['language']
+        response += f"Язык: {langs_str}\n"
+    
+    if task.get('tags'):
+        tags_str = ", ".join(task['tags']) if isinstance(task['tags'], list) else task['tags']
+        response += f"Теги: {tags_str}\n"
+    
+    await message.answer(response)
+    
+    #выводим условие
+    await message.answer("Условие задачи:")
+    
+    if task.get('task_text'):
+        await message.answer(f"{task['task_text']}")
+    elif task.get('task_file_id'):
+        await message.answer_document(
+            document=task['task_file_id'],
+            caption="Файл с условием задачи"
+        )
+    else:
+        await message.answer("Не указано")
+    
+    #выводим ответ
+    await message.answer("Ответ на задачу:")
+    
+    if task.get('answer_text'):
+        #текстовый ответ со спойлером
+        safe_answer = escape_markdown_v2(task['answer_text'])
+        await message.answer(
+            f"||{safe_answer}||",
+            parse_mode="MarkdownV2"
+        )
+    elif task.get('answer_file_id'):
+        await message.answer_document(
+            document=task['answer_file_id'],
+            caption="Файл с ответом на задачу"
+        )
+    else:
+        await message.answer("Сам думай, дурак!")
+    
+    #новый поиск
+    await message.answer(
+        "Для нового поиска введите /search",
+        parse_mode="Markdown"
+    )
 #КОНЕЦ ПОИСКА ЗАДАЧИ
+#листтаскс
+listasks_category = {}     
+listasks_page = {}         
+listasks_items = {}        
+listasks_task_page = {}    
+listasks_task_items = {}   
+
+def make_pagination_keyboard(items, page, prefix, per_page=10):
+    start = page * per_page
+    end = start + per_page
+    current_items = items[start:end]
+    
+    inline_keyboard = []
+    
+    for item in current_items:
+        if isinstance(item, dict): 
+            text = item['text']
+            callback_data = f"show_task_id:{item['id']}"
+        else: 
+            text = str(item)
+            callback_data = f"list_click:{prefix}:{items.index(item)}"
+            
+        inline_keyboard.append([InlineKeyboardButton(text=text, callback_data=callback_data)])
+        
+    nav_row = []
+    if page > 0:
+        nav_row.append(InlineKeyboardButton(text="Назад", callback_data=f"list_nav:{prefix}:{page-1}"))
+    
+    total_pages = (len(items) + per_page - 1) // per_page
+    if total_pages > 1:
+        nav_row.append(InlineKeyboardButton(text=f"{page+1}/{total_pages}", callback_data="noop"))
+        
+    if end < len(items):
+        nav_row.append(InlineKeyboardButton(text="Вперед", callback_data=f"list_nav:{prefix}:{page+1}"))
+        
+    if nav_row:
+        inline_keyboard.append(nav_row)
+        
+    if prefix != "menu":
+        inline_keyboard.append([InlineKeyboardButton(text="⬅Назад к категориям", callback_data="list_back_to_menu")])
+        
+    return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
+
+def escape_markdown_v2(text: str) -> str:
+    special_chars = r'([_*\[\]()~`>#+\-=|{}.!])'
+    return re.sub(special_chars, r'\\\1', text)
+
+async def show_full_task(message: Message, task: dict):
+    task_id = task.get('id', '')
+    title = task.get('title') or 'Без названия'
+    
+    response = f"{title} (id: {task_id})\n\n"
+    if task.get('authors'): response += f"Авторы: {task['authors']}\n"
+    if task.get('olympiad'): response += f"Олимпиада: {task['olympiad']} ({task['year'] or '—'})\n"
+    if task.get('language'): response += f"Язык: {task['language']}\n"
+    if task.get('tags'): response += f"Теги: {task['tags']}\n"
+    
+    await message.answer(response, parse_mode="Markdown")
+    await message.answer("Условие задачи:")
+    
+    if task.get('task_text'):
+        await message.answer(f"{task['task_text']}")
+    if task.get('task_file_id'):
+        await message.answer_document(document=task['task_file_id'], caption="Файл задачи")
+        
+    await message.answer("Ответ на задачу:")
+    
+    if task.get('answer_text'):
+        safe_answer = escape_markdown_v2(task['answer_text'])
+        await message.answer(f"||{safe_answer}||", parse_mode="MarkdownV2")
+    if task.get('answer_file_id'):
+        await message.answer_document(document=task['answer_file_id'], caption="Файл ответа")
+
+@start_router.message(Command("listasks"))
+async def cmd_listasks(message: Message):
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="По тэгам", callback_data="list_cat:tags")],
+        [InlineKeyboardButton(text="По олимпиадам", callback_data="list_cat:olympiads")],
+        [InlineKeyboardButton(text="По авторам", callback_data="list_cat:authors")],
+        [InlineKeyboardButton(text="По языкам", callback_data="list_cat:languages")]
+    ])
+    await message.answer("Выберите категорию для просмотра задач:", reply_markup=keyboard, parse_mode="Markdown")
+
+@start_router.callback_query(F.data.startswith("list_cat:"))
+async def process_list_category(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    category = callback.data.split(":")[1]
+    
+    listasks_category[user_id] = category
+    listasks_page[user_id] = 0
+    
+    if category == "tags":
+        cleaned_items = dai_tags()
+        title_text = "Доступные тэги:"
+    elif category == "olympiads":
+        cleaned_items = dai_olympiads()
+        title_text = "Доступные олимпиады:"
+    elif category == "authors":
+        cleaned_items = dai_authors()
+        title_text = "Доступные авторы:"
+    elif category == "languages":
+        cleaned_items = dai_lang()
+        title_text = "Доступные языки:"
+    
+    if not cleaned_items:
+        await callback.answer("В этой категории пока нет элементов.", show_alert=True)
+        return
+        
+    listasks_items[user_id] = cleaned_items
+    kb = make_pagination_keyboard(cleaned_items, page=0, prefix="item")
+    await callback.message.edit_text(title_text, reply_markup=kb, parse_mode="Markdown")
+    await callback.answer()
+
+@start_router.callback_query(F.data.startswith("list_nav:item:"))
+async def process_item_navigation(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    page = int(callback.data.split(":")[2])
+    items = listasks_items.get(user_id, [])
+    listasks_page[user_id] = page
+    
+    kb = make_pagination_keyboard(items, page=page, prefix="item")
+    await callback.message.edit_reply_markup(reply_markup=kb)
+    await callback.answer()
+
+@start_router.callback_query(F.data.startswith("list_click:item:"))
+async def process_item_click(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    item_index = int(callback.data.split(":")[2])
+    
+    items = listasks_items.get(user_id, [])
+    if item_index >= len(items):
+        await callback.answer("Ошибка сессии. Введите /listasks заново.", show_alert=True)
+        return
+        
+    selected_value = items[item_index]
+    category = listasks_category.get(user_id)
+    
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    col_map = {"tags": "tags", "olympiads": "olympiad", "authors": "authors", "languages": "language"}
+    column = col_map.get(category, "tags")
+    
+    cursor.execute(f"SELECT id, title, olympiad, year FROM tasks WHERE {column} LIKE ? AND status = 'approved'", (f"%{selected_value}%",))
+    db_tasks = cursor.fetchall()
+    conn.close()
+
+    task_buttons_data = []
+    for t in db_tasks:
+        btn_text = t['title'].strip() if t['title'] and t['title'].strip() else f"Олимпиада: {t['olympiad'] or 'Олимпиада'} ({t['year'] or '---'})"
+        task_buttons_data.append({"id": t['id'], "text": btn_text})
+        
+    listasks_task_items[user_id] = task_buttons_data
+    listasks_task_page[user_id] = 0
+    
+    kb = make_pagination_keyboard(task_buttons_data, page=0, prefix="task")
+    await callback.message.edit_text(f"Задачи по запросу «{selected_value}»:", reply_markup=kb, parse_mode="Markdown")
+    await callback.answer()
+
+@start_router.callback_query(F.data.startswith("list_nav:task:"))
+async def process_task_navigation(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    page = int(callback.data.split(":")[2])
+    tasks_list = listasks_task_items.get(user_id, [])
+    listasks_task_page[user_id] = page
+    
+    kb = make_pagination_keyboard(tasks_list, page=page, prefix="task")
+    await callback.message.edit_reply_markup(reply_markup=kb)
+    await callback.answer()
+
+@start_router.callback_query(F.data == "list_back_to_menu")
+async def process_back_to_menu(callback: CallbackQuery):
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="По тэгам", callback_data="list_cat:tags")],
+        [InlineKeyboardButton(text="По олимпиадам", callback_data="list_cat:olympiads")],
+        [InlineKeyboardButton(text="По авторам", callback_data="list_cat:authors")],
+        [InlineKeyboardButton(text="По языкам", callback_data="list_cat:languages")]
+    ])
+    await callback.message.edit_text("Выберите категорию для просмотра задач:", reply_markup=keyboard, parse_mode="Markdown")
+    await callback.answer()
+
+@start_router.callback_query(F.data == "noop")
+async def process_noop(callback: CallbackQuery):
+    await callback.answer()
+
+@start_router.callback_query(F.data.startswith("show_task_id:"))
+async def process_show_task_callback(callback: CallbackQuery):
+    task_id = int(callback.data.split(":")[1])
+    task = vivod_na_check(task_id)
+    
+    if not task:
+        await callback.answer("Ошибка: Задача не найдена.", show_alert=True)
+        return
+        
+    await callback.message.delete()
+    await show_full_task(callback.message, task)
+    await callback.answer()
+#конец листтаскс
 
 def files_keyboard():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -445,7 +776,7 @@ def onlyback_keyboard():
     return keyboard
 
 #клавиатура без кнопки скипа и с единичным выбором
-def noskip_onetag_keyboard(tags_db, chosen_tag, page=0, one_page=5):
+def noskip_onetag_keyboard(tags_db, chosen_tag, page=0, one_page=10):
     total = (len(tags_db) + one_page - 1) // one_page
     start = page * one_page
     end = one_page + start
@@ -469,7 +800,7 @@ def noskip_onetag_keyboard(tags_db, chosen_tag, page=0, one_page=5):
     buttons.append(lower_row)
     return back_keyboard(buttons)
 
-def tags_keyboard(tags_db, chosen_tags, page=0, one_page=5):
+def tags_keyboard(tags_db, chosen_tags, page=0, one_page=10):
     total = (len(tags_db) + one_page - 1) // one_page
     start = page * one_page
     end = one_page + start
@@ -1010,6 +1341,14 @@ async def taskfile(message: Message, user_id: int, is_file=True):
     add_task(sender_id, title, task_text, task_file_id, answer_text, answer_file_id, authors, tags, olympiad, year, language)
 
     await message.answer('Спасибо! Твоя задача добавлена в базу данных.')
+
+    admin_text = (
+        f"Новая задача ожидает модерации!\n\n"
+        f"Название: {title or 'Без названия'}\n"
+        f"Прислал: {message.from_user.full_name} (@{message.from_user.username})"
+    )
+    for admin_id in adm:
+        await bot.send_message(chat_id=admin_id, text=admin_text, parse_mode="HTML")
     if user_id in step:
         del step[user_id]
     if user_id in answers:
