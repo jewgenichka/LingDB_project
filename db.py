@@ -54,7 +54,7 @@ def add_task(sender_id, title=None, task_text=None, task_file_id=None,
     conn.close()
 
 
-#выдает список всех сущ-их авторов задач (пысы надо дописать чтоб потом можно доставать все задачи конкретного автора было)
+#выдает список всех сущ-их авторов задач
 def dai_authors():
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
@@ -72,7 +72,7 @@ def dai_authors():
     return list(set_authors)
 
 
-#выдает список сущ-их тэгов (тоже надо еще по тэгу доставать задачи)
+#выдает список сущ-их тэгов
 def dai_tags():
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
@@ -90,7 +90,7 @@ def dai_tags():
     return list(set_tags)
 
 
-#выдает список сущ-их языков (то же см выше)
+#выдает список сущ-их языков
 def dai_lang():
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
@@ -126,18 +126,30 @@ def sptasks_na_odobrenie():
 def odobrenie(task_id):
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
+    cursor.execute("SELECT sender_id FROM tasks WHERE id = ?", (task_id,))
+    sender = cursor.fetchone()
     cursor.execute("UPDATE tasks SET status = 'approved' WHERE id = ?", (task_id,))
     conn.commit()
-    conn.close
+    conn.close()
+    if sender:
+        return sender[0]
+    else:
+        return None
 
 
 #удаление задачи (по id)
 def udalenie(task_id):
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
+    cursor.execute("SELECT sender_id FROM tasks WHERE id = ?", (task_id,))
+    sender = cursor.fetchone()
     cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
     conn.commit()
-    conn.close
+    conn.close()
+    if sender:
+        return sender[0]
+    else:
+        return None
 
 
 #отдаст в виде словаря строку со всеми данными задачи по ее id
@@ -381,3 +393,12 @@ def task_po_id(tasks_id):
         return my_task_text, my_task_answer
     else:
         return None
+
+
+def change_status(task_id):
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("UPDATE tasks SET status = 'pending' WHERE id = ?", (task_id,))
+    conn.commit()
+    conn.close
