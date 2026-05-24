@@ -234,16 +234,25 @@ def top_search(ztitle = None, zauthors = None, ztags = None, zolymp = None, zyea
                     matches += 1
                     break
         if (zauthors and task['authors']):
+            sp_authors = []
+            for sl in task['authors'].split(','):
+                sp_authors.append(sl.strip())
             for au in zauthors:
-                if str(au) in task['authors']:
+                if str(au) in sp_authors:
                     matches += 1
         if (ztags and task['tags']):
+            sp_tags = []
+            for sl in task['tags'].split(','):
+                sp_tags.append(sl.strip())
             for tag in ztags:
-                if tag in task['tags']:
+                if tag in sp_tags:
                     matches += 1
         if (zlang and task['language']):
+            sp_langs = []
+            for sl in task['language'].split(','):
+                sp_langs.append(sl.strip())
             for lan in zlang:
-                if lan in task['language']:
+                if lan in sp_langs:
                     matches += 1
         if matches >= 1:
             di_task = dict(task)
