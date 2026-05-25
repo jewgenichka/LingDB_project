@@ -145,7 +145,6 @@ async def cmd_pending(message: Message):
 @admin.message(Command("moderate"))
 async def moderate(message: Message):
     user_id = message.from_user.id
-    print(f"Пользователь {user_id} запросил одобренные задачи.")
     if not await is_admin(user_id):
         await message.answer("У вас нет прав для просмотра этого раздела.")
         return
@@ -275,12 +274,22 @@ async def callback(callback: CallbackQuery, state: FSMContext):
 
     task_id = pending[user_id][index[user_id]]['id']
     if data == "dobro":
-        odobrenie(task_id)
+        sender = odobrenie(task_id)
         await callback.answer("Задача одобрена.")
+        if sender:
+            try:
+                await callback.bot.send_message(sender, f"Ваша задача (ID: {task_id}) была одобрена и добавлена в базу данных.")
+            except Exception as e:
+                print(f"Ошибка при отправке сообщения пользователю {sender}: {e}")
         return
     elif data == "otklon":
-        udalenie(task_id)
+        sender = udalenie(task_id)
         await callback.answer("Задача отклонена.")
+        if sender:
+            try:
+                await callback.bot.send_message(sender, f"Ваша задача (ID: {task_id}) была отклонена.")
+            except Exception as e:
+                print(f"Ошибка при отправке сообщения пользователю {sender}: {e}")
         return
     elif data == "edit":
         await edit(callback, state)
