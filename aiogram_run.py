@@ -11,8 +11,12 @@ from aiogram.types import Message
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from db import dai_authors, dai_olympiads, dai_lang, dai_tags, add_task, top_search, vivod_na_check, DB
 from admin import admin
+from decouple import Config, RepositoryEnv
 
-adm = [1365235944, 1689851064]
+config = Config(repository=RepositoryEnv('.env'))
+ADMINS = config('ADMINS')
+adm = [int(admin_id) for admin_id in ADMINS.split(',')]
+
 step = {}
 answers = {}
 
@@ -988,7 +992,7 @@ async def handle_tags(callback: CallbackQuery, user_id: int):
 #начало
 @start_router.message(CommandStart())
 async def cmd_start(message: Message):
-    await message.answer('Привет! Это база лингвистических задач, в которой ты можешь найти задания по ключевым словам, автору, олимпиаде и т. п. Пиши /add, чтобы добавить задачу, или /search, чтобы найти задачу.')
+    await message.answer('Привет! Это база лингвистических задач, в которой ты можешь найти задания по автору, олимпиаде, году и т. п. Пиши /add, чтобы добавить задачу, или /search, чтобы найти задачу.')
 
 @start_router.message(Command('add'))
 async def cmd_add(message: Message):
