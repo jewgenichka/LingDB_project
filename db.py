@@ -54,7 +54,7 @@ def add_task(sender_id, title=None, task_text=None, task_file_id=None,
     conn.close()
 
 
-#выдает список всех сущ-их авторов задач (пысы надо дописать чтоб потом можно доставать все задачи конкретного автора было)
+#выдает список всех сущ-их авторов задач
 def dai_authors():
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
@@ -72,7 +72,7 @@ def dai_authors():
     return list(set_authors)
 
 
-#выдает список сущ-их тэгов (тоже надо еще по тэгу доставать задачи)
+#выдает список сущ-их тэгов
 def dai_tags():
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
@@ -90,7 +90,7 @@ def dai_tags():
     return list(set_tags)
 
 
-#выдает список сущ-их языков (то же см выше)
+#выдает список сущ-их языков
 def dai_lang():
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
@@ -108,7 +108,7 @@ def dai_lang():
     return list(set_lang)
 
 
-#отдаст список словарей с id и языками задач которые ожидают одобрения админов
+#отдаст список словарей с id и всем остальным мета задач которые ожидают одобрения админов
 def sptasks_na_odobrenie():
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
@@ -126,18 +126,30 @@ def sptasks_na_odobrenie():
 def odobrenie(task_id):
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
+    cursor.execute("SELECT sender_id FROM tasks WHERE id = ?", (task_id,))
+    sender = cursor.fetchone()
     cursor.execute("UPDATE tasks SET status = 'approved' WHERE id = ?", (task_id,))
     conn.commit()
-    conn.close
+    conn.close()
+    if sender:
+        return sender[0]
+    else:
+        return None
 
 
 #удаление задачи (по id)
 def udalenie(task_id):
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
+    cursor.execute("SELECT sender_id FROM tasks WHERE id = ?", (task_id,))
+    sender = cursor.fetchone()
     cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
     conn.commit()
-    conn.close
+    conn.close()
+    if sender:
+        return sender[0]
+    else:
+        return None
 
 
 #отдаст в виде словаря строку со всеми данными задачи по ее id
@@ -222,16 +234,25 @@ def top_search(ztitle = None, zauthors = None, ztags = None, zolymp = None, zyea
                     matches += 1
                     break
         if (zauthors and task['authors']):
+            sp_authors = []
+            for sl in task['authors'].split(','):
+                sp_authors.append(sl.strip())
             for au in zauthors:
-                if str(au) in task['authors']:
+                if str(au) in sp_authors:
                     matches += 1
         if (ztags and task['tags']):
+            sp_tags = []
+            for sl in task['tags'].split(','):
+                sp_tags.append(sl.strip())
             for tag in ztags:
-                if tag in task['tags']:
+                if tag in sp_tags:
                     matches += 1
         if (zlang and task['language']):
+            sp_langs = []
+            for sl in task['language'].split(','):
+                sp_langs.append(sl.strip())
             for lan in zlang:
-                if lan in task['language']:
+                if lan in sp_langs:
                     matches += 1
         if matches >= 1:
             di_task = dict(task)
@@ -360,3 +381,33 @@ def task_po_author(author):
         sp_tasks.append(dict(sl))
     conn.close()
     return sp_tasks
+
+
+def task_po_id(tasks_id):
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT task_text, task_file_id, answer_text, answer_file_id FROM tasks WHERE id = ?", (tasks_id,))
+    task = cursor.fetchone()
+    conn.close
+    if task:
+        if task['task_text']:
+            my_task_text = task['task_text']
+        else:
+            my_task_text = task['task_file_id']
+        if ['answer_text']:
+            my_task_answer = task['answer_text']
+        else:
+            my_task_answer = task['answer_file_id']
+        return my_task_text, my_task_answer
+    else:
+        return None
+
+
+def change_status(task_id):
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("UPDATE tasks SET status = 'pending' WHERE id = ?", (task_id,))
+    conn.commit()
+    conn.close

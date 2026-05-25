@@ -14,6 +14,7 @@ admin = Router()
 
 pending = {}
 index = {}
+mdata = {}
 
 adm = [1365235944, 1689851064]
 
@@ -141,7 +142,38 @@ async def cmd_pending(message: Message):
     index[user_id] = 0
     await pending_tasks(message, user_id=user_id, task_id=0)
 
-@admin.callback_query(F.data.in_({"dobro", "otklon", "edit", "pred", "next", "exit"}))
+@admin.message(Command("moderate"))
+async def moderate(message: Message):
+    user_id = message.from_user.id
+    print(f"Пользователь {user_id} запросил одобренные задачи.")
+    if not await is_admin(user_id):
+        await message.answer("У вас нет прав для просмотра этого раздела.")
+        return
+    from db import dai_all
+    approved = [task for task in dai_all() if task.get('status') == 'approved']
+    if not approved:
+        await message.answer("Нет одобренных задач.")
+        return
+    mdata[user_id] = {'tasks': approved, 'index': 0}
+    tasks = mdata[user_id]['tasks']
+    page = mdata[user_id]['index']
+    total = (len(tasks) + 9) // 10
+    start = page * 10
+    end = start + 10
+    buttons = []
+    for task in tasks[start:end]:
+        buttons.append([InlineKeyboardButton(text=f"{task.get('title', 'Без названия')} (ID: {task['id']})", callback_data=f"mod_{task['id']}")])
+    row = []
+    if page > 0:
+        row.append(InlineKeyboardButton(text="Назад", callback_data="mod_prev"))
+    if page < total - 1:
+        row.append(InlineKeyboardButton(text="Вперед", callback_data="mod_next"))
+    if row:
+        buttons.append(row)
+    buttons.append([InlineKeyboardButton(text="Выйти", callback_data="mod_exit")])
+    await message.answer(f"Одобренные задачи (страница {page + 1} из {total}):", reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+
+@admin.callback_query(F.data.in_({"dobro", "otklon", "edit", "pred", "next", "exit"}) | F.data.startswith("mod_"))
 async def callback(callback: CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
     if not await is_admin(user_id):
@@ -149,6 +181,87 @@ async def callback(callback: CallbackQuery, state: FSMContext):
         return
     
     data = callback.data
+
+    if data == "mod_exit":
+        await callback.message.delete()
+        await callback.answer("Вы вышли из режима просмотра одобренных задач.")
+        return
+    if data == "mod_prev":
+        if user_id in mdata:
+            mdata[user_id]['index'] = max(0, mdata[user_id]['index'] - 1)
+            tasks = mdata[user_id]['tasks']
+            page = mdata[user_id]['index']
+            total = (len(tasks) + 9) // 10
+            start = page * 10
+            end = start + 10
+            buttons = []
+            for task in tasks[start:end]:
+                buttons.append([InlineKeyboardButton(text=f"{task.get('title', 'Без названия')} (ID: {task['id']})", callback_data=f"mod_{task['id']}")])
+            row = []
+            if page > 0:
+                row.append(InlineKeyboardButton(text="Назад", callback_data="mod_prev"))
+            if page < total - 1:
+                row.append(InlineKeyboardButton(text="Вперед", callback_data="mod_next"))
+            if row:
+                buttons.append(row)
+            buttons.append([InlineKeyboardButton(text="Выйти", callback_data="mod_exit")])
+            await callback.message.edit_text(f"Одобренные задачи (страница {page + 1} из {total}):", reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+        await callback.answer()
+        return
+    if data == "mod_next":
+        if user_id in mdata:
+            mdata[user_id]['index'] = min(len(mdata[user_id]['tasks']) - 1, mdata[user_id]['index'] + 1)
+            tasks = mdata[user_id]['tasks']
+            page = mdata[user_id]['index']
+            total = (len(tasks) + 9) // 10
+            start = page * 10
+            end = start + 10
+            buttons = []
+            for task in tasks[start:end]:
+                buttons.append([InlineKeyboardButton(text=f"{task.get('title', 'Без названия')} (ID: {task['id']})", callback_data=f"mod_{task['id']}")])
+            row = []
+            if page > 0:
+                row.append(InlineKeyboardButton(text="Назад", callback_data="mod_prev"))
+            if page < total - 1:
+                row.append(InlineKeyboardButton(text="Вперед", callback_data="mod_next"))
+            if row:
+                buttons.append(row)
+            buttons.append([InlineKeyboardButton(text="Выйти", callback_data="mod_exit")])
+            await callback.message.edit_text(f"Одобренные задачи (страница {page + 1} из {total}):", reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+        await callback.answer()
+        return
+    if data.startswith("mod_"):
+        task_id = int(data.split("_")[1])
+        from db import change_status
+        change_status(task_id)
+        await callback.answer("Статус задачи изменён.")
+        from db import dai_all
+        approved = [task for task in dai_all() if task.get('status') == 'approved']
+        if approved:
+            mdata[user_id] = {'tasks': approved, 'index': 0}
+            tasks = approved
+            page = 0
+            total = (len(tasks) + 9) // 10
+            start = page * 10
+            end = start + 10
+            buttons = []
+            for task in tasks[start:end]:
+                buttons.append([InlineKeyboardButton(text=f"{task.get('title', 'Без названия')} (ID: {task['id']})", callback_data=f"mod_{task['id']}")])
+            row = []
+            if page > 0:
+                row.append(InlineKeyboardButton(text="Назад", callback_data="mod_prev"))
+            if page < total - 1:
+                row.append(InlineKeyboardButton(text="Вперед", callback_data="mod_next"))
+            if row:
+                buttons.append(row)
+            buttons.append([InlineKeyboardButton(text="Выйти", callback_data="mod_exit")])
+            await callback.message.edit_text(f"Одобренные задачи (страница {page + 1} из {total}):", reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+        else:
+            await callback.message.delete()
+            await callback.answer("Нет одобренных задач.")
+        return
+    
+
 
     if data == "exit":
         user_id = callback.from_user.id
