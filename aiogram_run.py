@@ -776,19 +776,19 @@ def onlyback_keyboard():
     return keyboard
 
 #клавиатура без кнопки скипа и с единичным выбором
-def noskip_onetag_keyboard(tags_db, chosen_tag, page=0, one_page=10):
+def noskip_onetag_keyboard(tags_db, chosen_tags, page=0, one_page=10):
     total = (len(tags_db) + one_page - 1) // one_page
     start = page * one_page
     end = one_page + start
     tags = tags_db[start:end]
     buttons = []
 
-    for tag in tags_db:
-        if tag == chosen_tag:
+    for i, tag in enumerate(tags, start=start):
+        if tag in chosen_tags:
             chosen = f"✅{tag}"
         else:
             chosen = tag
-        buttons.append([InlineKeyboardButton(text=chosen, callback_data=f"one_{tag}")])
+        buttons.append([InlineKeyboardButton(text=chosen, callback_data=f"one_{i}")])
     row = []
     if page > 0:
         row.append(InlineKeyboardButton(text="Назад", callback_data=f"ol_page_{page-1}"))
@@ -807,12 +807,12 @@ def tags_keyboard(tags_db, chosen_tags, page=0, one_page=10):
     tags = tags_db[start:end]
     buttons = []
 
-    for tag in tags:
+    for i, tag in enumerate(tags, start=start):
         if tag in chosen_tags:
             chosen = f"✅{tag}"
         else:
             chosen = tag
-        buttons.append([InlineKeyboardButton(text=chosen, callback_data=f"tag_{tag}")])
+        buttons.append([InlineKeyboardButton(text=chosen, callback_data=f"tag_{i}")])
 
     row = []
     if page > 0:
@@ -849,7 +849,12 @@ async def handle_tags(callback: CallbackQuery, user_id: int):
         return
     if step.get(user_id) == 3.1:
         if data.startswith('one_'):
-            tag = data[4: ]
+            ind = int(data[4: ])
+            all = answers[user_id].get('tags_db', [])
+            if ind < len(all):
+                tag = all[ind]
+            else:
+                return
             answers[user_id]['olympiad'] = tag
             tags_db = answers[user_id].get('tags_db', [])
             await callback.message.edit_reply_markup(reply_markup=noskip_onetag_keyboard(tags_db, tag))
@@ -881,7 +886,12 @@ async def handle_tags(callback: CallbackQuery, user_id: int):
             await callback.answer() 
         return
     elif data.startswith('tag_'):
-        tag = data[4: ]
+        ind = int(data[4: ])
+        all = answers[user_id].get('tags_db', [])
+        if ind < len(all):
+            tag = all[ind]
+        else:
+            return
         if tag in answers[user_id][info]:
             answers[user_id][info].remove(tag)
             await callback.answer(f'Тег "{tag}" удалён.')
@@ -927,7 +937,7 @@ async def handle_tags(callback: CallbackQuery, user_id: int):
     elif data == 'skip':
         answers[user_id][info] = []
         if custom in answers[user_id]:
-            del  answers[user_id][custom]
+            del answers[user_id][custom]
         if 'tags_db' in answers[user_id]:
             del answers[user_id]['tags_db']
         if 'info' in answers[user_id]:

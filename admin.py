@@ -38,7 +38,7 @@ async def pending_tasks(message: Message, user_id: int = None, task_id: int = 0)
     task = tasks[task_id]
     index[user_id] = task_id
 
-    text = f"Айди: {task['id']}\nЗадача: {task['title']}\nАвтор(ы): {task['authors']}\nТег(и): {task['tags']}\nОлимпиада: {task['olympiad']}\nГод: {task['year']}\nЯзык(и): {task['language']}"
+    text = f"Айди: {task['id']}\nЗадача: {task.get('title', 'Без названия')}\nАвтор(ы): {task.get('authors', '-')}\nТег(и): {task.get('tags', '-')}\nОлимпиада: {task.get('olympiad', '-')}\nГод: {task.get('year', '-')}\nЯзык(и): {task.get('language', '-')}"
     
     buttons = []
     buttons.append([InlineKeyboardButton(text="Одобрить", callback_data="dobro"), InlineKeyboardButton(text="Отклонить", callback_data="otklon")])
@@ -127,6 +127,13 @@ async def cmd_pending(message: Message):
         await message.answer("У вас нет прав для просмотра этого раздела.")
         return
     tasks = sptasks_na_odobrenie()
+    tasks = sptasks_na_odobrenie()
+    for task in tasks:
+        print(f"ID: {task['id']}")
+        print(f"title: {task.get('title')}")
+        print(f"authors: {task.get('authors')} (тип: {type(task.get('authors'))})")
+        print(f"tags: {task.get('tags')} (тип: {type(task.get('tags'))})")
+        print(f"language: {task.get('language')} (тип: {type(task.get('language'))})")
     if not tasks:
         await message.answer("Нет задач на одобрение.")
         return
