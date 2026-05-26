@@ -1,7 +1,15 @@
 import sqlite3
+import os
 
+if os.path.exists('/opt/render/project/src/data'):
+    DB_DIR = '/opt/render/project/src/data'
+else:
+    DB_DIR = os.path.dirname(os.path.abspath(__file__))
+    
+if not os.path.exists(DB_DIR):
+    os.makedirs(DB_DIR)
 
-DB = 'olympiad_tasks.db'
+DB = os.path.join(DB_DIR, 'olympiad_tasks.db')
 def init_db():
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
