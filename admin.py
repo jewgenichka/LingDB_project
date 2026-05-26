@@ -4,6 +4,8 @@ from aiogram.filters import Command
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 
+from decouple import Config, RepositoryEnv
+from create_bot import ADMINS
 from db import sptasks_na_odobrenie, odobrenie, udalenie, redaktor
 
 class Edit(StatesGroup):
@@ -16,7 +18,9 @@ pending = {}
 index = {}
 mdata = {}
 
-adm = [1365235944, 1689851064]
+config = Config(repository=RepositoryEnv('.env'))
+ADMINS = config('ADMINS')
+adm = [int(admin_id) for admin_id in ADMINS.split(',')]
 
 async def is_admin(user_id: int) -> bool:
     return user_id in adm
