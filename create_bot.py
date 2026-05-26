@@ -15,8 +15,15 @@ import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 env_path = os.path.join(BASE_DIR, '.env')
 
-
-config = Config(repository=RepositoryEnv(env_path))
+if os.path.exists('.env'):
+    config = Config(repository=RepositoryEnv(env_path))
+else:
+    class EnvConfig:
+        def __getitem__(self, key):
+            return os.environ[key]
+        def get(self, key, default=None):
+            return os.environ.get(key, default)
+    config = EnvConfig()
 TOKEN = config('TOKEN')
 ADMINS = config('ADMINS')
 admins = [int(admin_id) for admin_id in ADMINS.split(',')]

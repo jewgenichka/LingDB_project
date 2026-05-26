@@ -4,23 +4,21 @@ import os
 import re
 import sqlite3
 
-from create_bot import bot, dp
+from create_bot import bot, dp, admins
 from aiogram import Router, F
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from db import task_po_id, dai_authors, dai_olympiads, dai_lang, dai_tags, add_task, top_search, vivod_na_check, DB
 from admin import admin
-from decouple import Config, RepositoryEnv
+
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 
 class SearchStates(StatesGroup):
     waiting_for_id = State()
 
-config = Config(repository=RepositoryEnv('.env'))
-ADMINS = config('ADMINS')
-adm = [int(admin_id) for admin_id in ADMINS.split(',')]
+adm = admins
 
 step = {}
 answers = {}
