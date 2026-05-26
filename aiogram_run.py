@@ -80,12 +80,12 @@ def make_back_keyboard():
 
 def make_single_choice_keyboard(items, chosen_item): #для единичного выбора олимпиады
     buttons = []
-    for item in items:
+    for idx, item in enumerate(items):
         if item == chosen_item:
             button_text = f"✅ {item}"
         else:
             button_text = f"⬜ {item}"
-        buttons.append([InlineKeyboardButton(text=button_text, callback_data=f"choose_olympiad_{item}")])
+        buttons.append([InlineKeyboardButton(text=button_text, callback_data=f"choose_olympiad_{idx}")])
 
     lower_row = [InlineKeyboardButton(text="Готово", callback_data="done_olympiad"), 
                  InlineKeyboardButton(text="Пропустить", callback_data="skip_olympiad"),
@@ -96,12 +96,12 @@ def make_single_choice_keyboard(items, chosen_item): #для единичног�
 #функция для множественного выбора (авторы, теги, языки)
 def multi_choice_keyboard(items, chosen_items, param_type):
     buttons = []
-    for item in items:
+    for idx, item in enumerate(items):
         if item in chosen_items:
             button_text = f"✅ {item}"
         else:
             button_text = f"⬜ {item}"
-        buttons.append([InlineKeyboardButton(text=button_text, callback_data=f"choose_multi_{param_type}_{item}")])
+        buttons.append([InlineKeyboardButton(text=button_text, callback_data=f"choose_multi_{param_type}_{idx}")])
     lower_row = []
     if chosen_items:
         lower_row.append(InlineKeyboardButton(text="Готово", callback_data=f"done_multi_{param_type}"))
@@ -189,15 +189,16 @@ async def handle_search_callbacks(callback: CallbackQuery): #Обрабатыв�
     
     #обработка выбора олимпиады (единичный выбор)
     if data.startswith("choose_olympiad_"):
-        value = data.replace("choose_olympiad_", "")
-        search_values[user_id]["olympiad"] = value
-        await callback.answer(f"Выбрана олимпиада: {value}")
-        
+        idx = int(data.split("_")[1])
         items = dai_olympiads()
-        await callback.message.edit_reply_markup(
+        if idx < len(items):
+            value = items[idx]
+            search_values[user_id]["olympiad"] = value
+            await callback.answer(f"Выбрана олимпиада: {value}")
+            await callback.message.edit_reply_markup(
             reply_markup=make_single_choice_keyboard(items, value)
         )
-        return
+            return
     
     #завершение выбора олимпиады
     if data == "done_olympiad":
@@ -221,28 +222,29 @@ async def handle_search_callbacks(callback: CallbackQuery): #Обрабатыв�
     
     #обработка множественного выбора (авторы, теги, языки)
     if data.startswith("choose_multi_"):
-        parts = data.split("_", 3)  #['choose', 'multi', 'authors', 'Иванов']
+        parts = data.split("_")  
         if len(parts) >= 4:
             param_type = parts[2]
-            value = parts[3]
+            idx = int(parts[3])
             
-            if param_type not in search_values[user_id]:
-                search_values[user_id][param_type] = []
-            
-            if value in search_values[user_id][param_type]:
-                search_values[user_id][param_type].remove(value)
-                await callback.answer(f"Убран {param_type}: {value}")
-            else:
-                search_values[user_id][param_type].append(value)
-                await callback.answer(f"Добавлен {param_type}: {value}")
-            
-            #обновляем клавиатуру
             if param_type == "authors":
                 items = dai_authors()
             elif param_type == "tags":
                 items = dai_tags()
             else:  # language
                 items = dai_lang()
+
+            if idx < len(items):
+                value = items[idx]
+                if param_type not in search_values[user_id]:
+                    search_values[user_id][param_type] = []
+            
+                if value in search_values[user_id][param_type]:
+                    search_values[user_id][param_type].remove(value)
+                    await callback.answer(f"Убран {param_type}: {value}")
+                else:
+                    search_values[user_id][param_type].append(value)
+                    await callback.answer(f"Добавлен {param_type}: {value}")
             
             await callback.message.edit_reply_markup(
                 reply_markup=multi_choice_keyboard(items, search_values[user_id][param_type], param_type)
