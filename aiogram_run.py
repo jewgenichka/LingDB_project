@@ -774,6 +774,8 @@ def onlyback_keyboard():
 
 #клавиатура без кнопки скипа и с единичным выбором
 def noskip_onetag_keyboard(tags_db, chosen_tags, page=0, one_page=10):
+    if chosen_tags is None:
+        chosen_tags = []
     total = (len(tags_db) + one_page - 1) // one_page
     start = page * one_page
     end = one_page + start
@@ -798,6 +800,8 @@ def noskip_onetag_keyboard(tags_db, chosen_tags, page=0, one_page=10):
     return back_keyboard(buttons)
 
 def tags_keyboard(tags_db, chosen_tags, page=0, one_page=10):
+    if chosen_tags is None:
+        chosen_tags = []
     total = (len(tags_db) + one_page - 1) // one_page
     start = page * one_page
     end = one_page + start
@@ -967,6 +971,15 @@ async def cmd_add(message: Message):
     user_id = message.from_user.id
     step[user_id] = 0
     await message.answer('Шаг 0. Введи название задачи. Если не хочешь указывать, нажми "Пропустить".', reply_markup=skip_keyboard())
+
+@start_router.message(Command('backup'))
+async def backup(message: Message):
+    user_id = message.from_user.id
+    if user_id not in adm:
+        await message.answer('У вас нет прав для этого действия.')
+        return
+    dbf = FSInputFile('olympiad_tasks.db')
+    await message.answer_document(dbf, caption='Бэкап БД')
 
 #все коллбеки
 @start_router.callback_query()
@@ -1170,7 +1183,7 @@ async def get_tags3(message: Message, user_id: int):
     if user_id not in answers:
         answers[user_id] = {}
     if 'olympiad' not in answers[user_id]:
-        answers[user_id]['olympiad'] = None
+        answers[user_id]['olympiad'] = []
     if 'custom_olympiad' not in answers[user_id]:
         answers[user_id]['custom_olympiad'] = None
     
@@ -1361,14 +1374,6 @@ async def taskfile(message: Message, user_id: int, is_file=True):
     if user_id in answers:
         del answers[user_id]
 
-@start_router.message(Command('backup'))
-async def backup(message: Message):
-    user_id = message.from_user.id
-    if user_id not in adm:
-        await message.answer('У вас нет прав для этого действия.')
-        return
-    dbf = FSInputFile('olympiad_tasks.db')
-    await message.answer_document(dbf, caption='Бэкап БД')
 #запуск бота
 async def main():
     dp.include_router(admin)
