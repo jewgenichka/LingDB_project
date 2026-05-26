@@ -15,6 +15,18 @@ from admin import admin
 
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
+from aiohttp import web
+
+async def health(request):
+    return web.Response(text="ok")
+
+async def start_web():
+    app = web.Application()
+    app.router.add_get('/', health)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', int(os.environ.get('PORT', 10000)))
+    await site.start()
 
 class SearchStates(StatesGroup):
     waiting_for_id = State()
@@ -1376,6 +1388,7 @@ async def taskfile(message: Message, user_id: int, is_file=True):
 
 #запуск бота
 async def main():
+    asyncio.create_task(start_web())
     dp.include_router(admin)
     dp.include_router(start_router)
     await bot.delete_webhook(drop_pending_updates=True)
