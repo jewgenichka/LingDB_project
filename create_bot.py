@@ -9,14 +9,20 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from decouple import Config, RepositoryEnv
+
 import os
 
-ADMINS="1365235944, 1689851064"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+env_path = os.path.join(BASE_DIR, '.env')
+
+
+config = Config(repository=RepositoryEnv(env_path))
+TOKEN = config('TOKEN')
+ADMINS = config('ADMINS')
 admins = [int(admin_id) for admin_id in ADMINS.split(',')]
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-TOKEN='8745809932:AAEz04VzrQdOd3CH2VyGCw75nN-fAIxGJhI'
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=MemoryStorage())

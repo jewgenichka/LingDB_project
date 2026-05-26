@@ -132,13 +132,6 @@ async def cmd_pending(message: Message):
         await message.answer("У вас нет прав для просмотра этого раздела.")
         return
     tasks = sptasks_na_odobrenie()
-    tasks = sptasks_na_odobrenie()
-    for task in tasks:
-        print(f"ID: {task['id']}")
-        print(f"title: {task.get('title')}")
-        print(f"authors: {task.get('authors')} (тип: {type(task.get('authors'))})")
-        print(f"tags: {task.get('tags')} (тип: {type(task.get('tags'))})")
-        print(f"language: {task.get('language')} (тип: {type(task.get('language'))})")
     if not tasks:
         await message.answer("Нет задач на одобрение.")
         return
