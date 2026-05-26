@@ -7,6 +7,7 @@ import sqlite3
 from create_bot import bot, dp, admins
 from aiogram import Router, F
 from aiogram.filters import CommandStart, Command
+from aiogram.types import FSInputFile
 from aiogram.types import Message
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from db import task_po_id, dai_authors, dai_olympiads, dai_lang, dai_tags, add_task, top_search, vivod_na_check, DB
@@ -1358,6 +1359,14 @@ async def taskfile(message: Message, user_id: int, is_file=True):
     if user_id in answers:
         del answers[user_id]
 
+@start_router.message(Command('backup'))
+async def backup(message: Message):
+    user_id = message.from_user.id
+    if user_id not in adm:
+        await message.answer('У вас нет прав для этого действия.')
+        return
+    dbf = FSInputFile('olympiad_tasks.db')
+    await message.answer_document(dbf, caption='Бэкап БД')
 #запуск бота
 async def main():
     dp.include_router(admin)
