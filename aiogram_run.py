@@ -45,7 +45,7 @@ search_values = {}
 search_index = {}
 search_results = {}
 search_current_index = {}
-
+search_page = {}
 
 def escape_markdown_v2(text: str) -> str:
     special_chars = r'([_*\[\]()~`>#+\-=|{}.!])'
@@ -90,36 +90,72 @@ def make_back_keyboard():
     ])
     return keyboard
 
-def make_single_choice_keyboard(items, chosen_item): #для единичного выбора олимпиады
+def make_single_choice_keyboard(items, chosen_item, back_callback, page=0, items_per_page=10):
+    total_pages = (len(items) + items_per_page - 1) // items_per_page
+    start = page * items_per_page
+    end = start + items_per_page
+    current_items = items[start:end]
+    
     buttons = []
-    for idx, item in enumerate(items):
+    for idx, item in enumerate(current_items, start=start):
         if item == chosen_item:
             button_text = f"✅ {item}"
         else:
             button_text = f"⬜ {item}"
         buttons.append([InlineKeyboardButton(text=button_text, callback_data=f"choose_olympiad_{idx}")])
-
+    
+    #кнопки навигации
+    nav_buttons = []
+    if page > 0:
+        nav_buttons.append(InlineKeyboardButton(text="Назад", callback_data=f"olympiad_page_{page-1}"))
+    nav_buttons.append(InlineKeyboardButton(text=f"{page+1}/{total_pages if total_pages>0 else 1}", callback_data="noop"))
+    if page < total_pages - 1:
+        nav_buttons.append(InlineKeyboardButton(text="Вперед", callback_data=f"olympiad_page_{page+1}"))
+    
+    if nav_buttons:
+        buttons.append(nav_buttons)
+    
     lower_row = [InlineKeyboardButton(text="Готово", callback_data="done_olympiad"), 
                  InlineKeyboardButton(text="Пропустить", callback_data="skip_olympiad"),
-                 InlineKeyboardButton(text="Назад", callback_data="back_to_params")]
+                 InlineKeyboardButton(text="Назад к параметрам", callback_data=back_callback)]
     buttons.append(lower_row)
+    
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-#функция для множественного выбора (авторы, теги, языки)
-def multi_choice_keyboard(items, chosen_items, param_type):
+#функция для множественного выбора (авторы, тэги, языки)
+def multi_choice_keyboard(items, chosen_items, param_type, back_callback, page=0, items_per_page=10):
+    total_pages = (len(items) + items_per_page - 1) // items_per_page
+    start = page * items_per_page
+    end = start + items_per_page
+    current_items = items[start:end]
+    
     buttons = []
-    for idx, item in enumerate(items):
+    for idx, item in enumerate(current_items, start=start):
         if item in chosen_items:
             button_text = f"✅ {item}"
         else:
             button_text = f"⬜ {item}"
         buttons.append([InlineKeyboardButton(text=button_text, callback_data=f"choose_multi_{param_type}_{idx}")])
+    
+    #кнопки навигации
+    nav_buttons = []
+    if page > 0:
+        nav_buttons.append(InlineKeyboardButton(text="Назад", callback_data=f"multi_page_{param_type}_{page-1}"))
+    nav_buttons.append(InlineKeyboardButton(text=f"{page+1}/{total_pages if total_pages>0 else 1}", callback_data="noop"))
+    if page < total_pages - 1:
+        nav_buttons.append(InlineKeyboardButton(text="Вперед", callback_data=f"multi_page_{param_type}_{page+1}"))
+    
+    if nav_buttons:
+        buttons.append(nav_buttons)
+    
+    #кнопки действий
     lower_row = []
     if chosen_items:
         lower_row.append(InlineKeyboardButton(text="Готово", callback_data=f"done_multi_{param_type}"))
-    lower_row.append(InlineKeyboardButton(text="Пропустить", callback_data=f"skip_multi_{param_type}"))
-    lower_row.append(InlineKeyboardButton(text="Назад", callback_data="back_to_params"))
+    lower_row.append(InlineKeyboardButton(text="Пропустить", callback_data=f"skip_{param_type}"))
+    lower_row.append(InlineKeyboardButton(text="Назад к параметрам", callback_data=back_callback))
     buttons.append(lower_row)
+    
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 #клавиатура для навигации по результатам поиска"
@@ -140,9 +176,9 @@ async def cmd_search(message: Message):
     
     await message.answer(
         "Поиск задачи\n\n"
-        "Выбери параметры, которые ты помнишь о задаче.\n"
-        "Можно выбрать несколько. Нажми на параметр, чтобы добавить или убрать его.\n\n"
-        "Когда выберешь всё, что помнишь, нажми «Начать поиск».",
+        "Выберите параметры, которые вы помните о задаче.\n"
+        "Можно выбрать несколько. Нажмите на параметр, чтобы добавить или убрать его.\n\n"
+        "Когда выберете всё, что помните, нажмите «Начать поиск».",
         parse_mode="Markdown",
         reply_markup=make_params_keyboard([])
     )
@@ -152,7 +188,7 @@ async def handle_search_callbacks(callback: CallbackQuery): #Обрабатыв�
     data = callback.data
 
     if user_id not in search_step:
-        await callback.answer("Сначала введи /search")
+        await callback.answer("Сначала введите /search")
         return
     
     #возврат к выбору параметров
@@ -160,9 +196,20 @@ async def handle_search_callbacks(callback: CallbackQuery): #Обрабатыв�
         search_step[user_id] = "choosing_params"
         await callback.message.edit_reply_markup(None)
         await callback.message.answer(
-            "Выбери параметры для поиска:",
+            "Выберите параметры для поиска:",
             reply_markup=make_params_keyboard(search_params[user_id])
         )
+        await callback.answer()
+        return
+    
+    #возврат к предыдущему параметру
+    if data == "back_to_previous":
+        search_index[user_id] -= 1
+        prev_param = search_params[user_id][search_index[user_id]]
+        if prev_param in search_values[user_id]:
+            del search_values[user_id][prev_param]
+        await callback.message.edit_reply_markup(None)
+        await next_param(callback.message, user_id)
         await callback.answer()
         return
     
@@ -178,7 +225,7 @@ async def handle_search_callbacks(callback: CallbackQuery): #Обрабатыв�
             del search_index[user_id]
         
         await callback.message.edit_reply_markup(None)
-        await callback.message.answer("Поиск отменён. Используй /search для нового поиска.")
+        await callback.message.answer("Поиск отменён. Используйте /search для нового поиска.")
         await callback.answer()
         return
     
@@ -193,13 +240,29 @@ async def handle_search_callbacks(callback: CallbackQuery): #Обрабатыв�
             search_params[user_id].append(param)
             await callback.answer(f"Добавлен параметр: {param}")
         
-        #обновляем клавиатуру
         await callback.message.edit_reply_markup(
             reply_markup=make_params_keyboard(search_params[user_id])
         )
         return
+
+    #обработка навигации по страницам для олимпиады
+    if data.startswith("olympiad_page_"):
+        new_page = int(data.split("_")[-1])
+        page_key = f"olympiad_{user_id}"
+        search_page[page_key] = new_page
+        
+        items = dai_olympiads()
+        chosen = search_values[user_id].get("olympiad")
+        if search_index.get(user_id, 0) == 0:
+            back_callback = "back_to_params" 
+        else:
+            back_callback = "back_to_previous"
+        await callback.message.edit_reply_markup(
+            reply_markup=make_single_choice_keyboard(items, chosen, back_callback, new_page)
+        )
+        await callback.answer()
+        return
     
-    #обработка выбора олимпиады (единичный выбор)
     if data.startswith("choose_olympiad_"):
         idx = int(data.split("_")[2])
         items = dai_olympiads()
@@ -207,31 +270,59 @@ async def handle_search_callbacks(callback: CallbackQuery): #Обрабатыв�
             value = items[idx]
             search_values[user_id]["olympiad"] = value
             await callback.answer(f"Выбрана олимпиада: {value}")
+            if search_index.get(user_id, 0) == 0:
+                back_callback = "back_to_params"
+            else:
+                back_callback = "back_to_previous"
+            page_key = f"olympiad_{user_id}"
+            current_page = search_page.get(page_key, 0)
             await callback.message.edit_reply_markup(
-            reply_markup=make_single_choice_keyboard(items, value)
-        )
-            return
+                reply_markup=make_single_choice_keyboard(items, value, back_callback, current_page)
+            )
+        return
     
     #завершение выбора олимпиады
     if data == "done_olympiad":
         if "olympiad" not in search_values[user_id]:
             await callback.answer("Пожалуйста, выберите олимпиаду или нажмите «Пропустить»!")
             return
+        page_key = f"olympiad_{user_id}"
+        if page_key in search_page:
+            del search_page[page_key]
+        
         search_index[user_id] += 1
         await callback.message.edit_reply_markup(None)
         await next_param(callback.message, user_id)
         await callback.answer()
         return
     
-    #пропуск олимпиады
-    if data == "skip_olympiad":
-        search_values[user_id]["olympiad"] = None
-        search_index[user_id] += 1
-        await callback.message.edit_reply_markup(None)
-        await next_param(callback.message, user_id)
+    if data.startswith("multi_page_"):
+        parts = data.split("_")
+        if len(parts) >= 4:
+            param_type = parts[2]
+            new_page = int(parts[3])
+            page_key = f"{param_type}_{user_id}"
+            search_page[page_key] = new_page
+            
+            if param_type == "authors":
+                items = dai_authors()
+            elif param_type == "tags":
+                items = dai_tags()
+            else:
+                items = dai_lang()
+            
+            chosen = search_values[user_id].get(param_type, [])
+            if search_index.get(user_id, 0) == 0:
+                back_callback = "back_to_params" 
+            else:
+                back_callback = "back_to_previous"
+            
+            await callback.message.edit_reply_markup(
+                reply_markup=multi_choice_keyboard(items, chosen, param_type, back_callback, new_page)
+            )
         await callback.answer()
         return
-    
+
     #обработка множественного выбора (авторы, теги, языки)
     if data.startswith("choose_multi_"):
         parts = data.split("_")  
@@ -258,8 +349,16 @@ async def handle_search_callbacks(callback: CallbackQuery): #Обрабатыв�
                     search_values[user_id][param_type].append(value)
                     await callback.answer(f"Добавлен {param_type}: {value}")
             
+            page_key = f"{param_type}_{user_id}"
+            current_page = search_page.get(page_key, 0)
+            
+            if search_index.get(user_id, 0) == 0:
+                back_callback = "back_to_params"
+            else:
+                back_callback = "back_to_previous"
+            
             await callback.message.edit_reply_markup(
-                reply_markup=multi_choice_keyboard(items, search_values[user_id][param_type], param_type)
+                reply_markup=multi_choice_keyboard(items, search_values[user_id][param_type], param_type, back_callback, current_page)
             )
         return
     
@@ -268,16 +367,32 @@ async def handle_search_callbacks(callback: CallbackQuery): #Обрабатыв�
         param_type = data.replace("done_multi_", "")
         if param_type not in search_values[user_id]:
             search_values[user_id][param_type] = []
+        
+        page_key = f"{param_type}_{user_id}"
+        if page_key in search_page:
+            del search_page[page_key]
+        
         search_index[user_id] += 1
         await callback.message.edit_reply_markup(None)
         await next_param(callback.message, user_id)
         await callback.answer()
         return
     
-    #пропуск множественного выбора
-    if data.startswith("skip_multi_"):
-        param_type = data.replace("skip_multi_", "")
-        search_values[user_id][param_type] = []
+    #пропуск для любого типа параметров (единичный для олимпиады, мульти для тэгов, авторов и языков и текстовый ввод для года и названия)
+    if data.startswith("skip_"):
+        param_type = data.replace("skip_", "")
+        
+        if param_type == "olympiad":
+            search_values[user_id][param_type] = None
+        elif param_type in ["authors", "tags", "language", "name", "year"]:
+            if param_type in ["authors", "tags", "language"]:
+                search_values[user_id][param_type] = []  
+            else:
+                search_values[user_id][param_type] = None
+        if param_type in ["olympiad", "authors", "tags", "language"]:
+            page_key = f"{param_type}_{user_id}"
+            if page_key in search_page:
+                del search_page[page_key]
         search_index[user_id] += 1
         await callback.message.edit_reply_markup(None)
         await next_param(callback.message, user_id)
@@ -287,8 +402,11 @@ async def handle_search_callbacks(callback: CallbackQuery): #Обрабатыв�
     #начало поиска
     if data == "start_search":
         if not search_params[user_id]:
-            await callback.answer("Выбери хотя бы один параметр!")
+            await callback.answer("Выберите хотя бы один параметр!")
             return
+        keys_to_delete = [k for k in search_page if k.endswith(f"_{user_id}")]
+        for key in keys_to_delete:
+            del search_page[key]
         
         #инициализируем сбор значений
         search_values[user_id] = {}
@@ -312,19 +430,27 @@ async def next_param(message: Message, user_id: int): #Спрашивает по
         await perform_search(message, user_id, state) # <-- Передали его сюда
         return
     current_param = params_list[current_index]
-    
+
+    if current_index == 0: 
+        back_callback = "back_to_params" 
+    else:
+        back_callback = "back_to_previous"
+
     #для олимпиады показываем клавиатуру с единичным выбором
     if current_param == "olympiad":
         items = dai_olympiads()
         chosen = search_values[user_id].get(current_param)
         search_step[user_id] = f"selecting_{current_param}"
         
+        page_key = f"olympiad_{user_id}"
+        current_page = search_page.get(page_key, 0)
+        
         await message.answer(
             f"Вопрос {current_index + 1} из {len(params_list)}\n\n"
             f"Вы выбрали параметр: олимпиада\n\n"
             f"Выберите олимпиаду из списка (можно только одну):",
             parse_mode="Markdown",
-            reply_markup=make_single_choice_keyboard(items, chosen)
+            reply_markup=make_single_choice_keyboard(items, chosen, back_callback, current_page)
         )
         return
     
@@ -336,19 +462,22 @@ async def next_param(message: Message, user_id: int): #Спрашивает по
         elif current_param == "tags":
             items = dai_tags()
             title = "тэги"
-        else:  # language
+        else:  #language
             items = dai_lang()
             title = "язык"
         
         chosen = search_values[user_id].get(current_param, [])
         search_step[user_id] = f"selecting_{current_param}"
         
+        page_key = f"{current_param}_{user_id}"
+        current_page = search_page.get(page_key, 0)
+        
         await message.answer(
             f"Вопрос {current_index + 1} из {len(params_list)}\n\n"
             f"Вы выбрали параметр: {title}\n\n"
             f"Выберите нужное (можно несколько):",
             parse_mode="Markdown",
-            reply_markup=multi_choice_keyboard(items, chosen, current_param)
+            reply_markup=multi_choice_keyboard(items, chosen, current_param, back_callback, current_page)
         )
         return
     
@@ -361,13 +490,17 @@ async def next_param(message: Message, user_id: int): #Спрашивает по
     param_name, prompt_text = param_info.get(current_param, (current_param, "Введи значение"))
     
     search_step[user_id] = f"asking_{current_param}"
-    
+    search_skip_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Пропустить", callback_data=f"skip_{current_param}")],
+        [InlineKeyboardButton(text="Назад", callback_data="back_to_previous" if current_index > 0 else "back_to_params")]
+    ])
+
     await message.answer(
         f"Вопрос {current_index + 1} из {len(params_list)}\n\n"
         f"Ты выбрал параметр: {param_name}\n\n"
         f"{prompt_text}",
         parse_mode="Markdown",
-        reply_markup=make_back_keyboard()
+        reply_markup=search_skip_keyboard
     )
 
 async def handle_search_input(message: Message): # Обрабатывает текстовые ответы пользователя на вопросы о параметрах
@@ -442,7 +575,7 @@ async def perform_search(message: Message, user_id: int, state: FSMContext):
             all_params[param] = value
     
     #показываем пользователю, что ищем
-    status_message = await message.answer("Ищу задачи в базе данных... Подожди немного.")
+    status_message = await message.answer("Ищу задачи в базе данных... Подождите немного.")
     
     try:
         #функция из db.py
@@ -461,7 +594,7 @@ async def perform_search(message: Message, user_id: int, state: FSMContext):
         if not results:
             await message.answer(
                 "Задачи не найдены\n\n"
-                "Попробуй выбрать другие параметры или ипользовать /search для нового поиска",
+                "Попробуйте выбрать другие параметры или использовать /search для нового поиска",
                 )
         else:
             #показываем результаты (топ-5)
@@ -488,7 +621,7 @@ async def perform_search(message: Message, user_id: int, state: FSMContext):
                     response += f"Теги: {tags_str}\n"
                 response += "\n"
             await message.answer(response)
-            await message.answer("Введи <b>ID задачи</b> с клавиатуры, чтобы получить её условие и ответ:")
+            await message.answer("Введите <b>ID задачи</b> с клавиатуры, чтобы получить её условие и ответ:")
             await state.set_state(SearchStates.waiting_for_id)
             
             #ждём, когда введут айдишник
