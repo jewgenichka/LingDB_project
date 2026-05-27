@@ -1,0 +1,4 @@
+asyncpg
+aiogram
+python-decouple
+sqlite3
