@@ -205,7 +205,7 @@ async def moderate(message: Message):
     buttons.append([
         InlineKeyboardButton(text="Выйти", callback_data="mod_exit")
     ])
-    await callback.message.edit_text(
+    await message.answer(
         f"Одобренные задачи (страница {page + 1} из {total}):",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
     )
