@@ -1,0 +1,6 @@
+asyncpg
+aiogram
+APScheduler
+python-decouple
+sqlite3
+python-decouple
