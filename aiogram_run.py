@@ -1437,7 +1437,7 @@ async def callbacks(callback: CallbackQuery):
                 del answers[user_id]
             await callback.message.edit_reply_markup(None)
             await callback.message.answer(
-                'Ты вернулся в главное меню.'
+                'Ты вернулся в главное меню. '
                 'Пиши /add, чтобы добавить задачу, или /search, чтобы найти задачу.',
                 reply_markup=None
             )
