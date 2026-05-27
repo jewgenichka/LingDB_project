@@ -5,11 +5,13 @@ if os.path.exists('/opt/render/project/src/data'):
     DB_DIR = '/opt/render/project/src/data'
 else:
     DB_DIR = os.path.dirname(os.path.abspath(__file__))
-    
+
 if not os.path.exists(DB_DIR):
     os.makedirs(DB_DIR)
 
 DB = os.path.join(DB_DIR, 'olympiad_tasks.db')
+
+
 def init_db():
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
@@ -45,28 +47,37 @@ def init_db():
     conn.close()
 
 
-#отправляет в бд все заполненные юзером данные, использовать на кнопку отправить на модерацию или чет такое
+# отправляет в бд все заполненные юзером данные, использовать на кнопку
+# отправить на модерацию или чет такое
 def add_task(sender_id, title=None, task_text=None, task_file_id=None,
              answer_text=None, answer_file_id=None, authors=None,
              tags=None, olympiad=None, year=None, language=None):
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
-    cursor.execute('''
+    cursor.execute(
+        '''
         INSERT INTO tasks (
             sender_id, title, task_text, task_file_id,
             answer_text, answer_file_id,
             authors, tags, olympiad, year, language
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (sender_id, title, task_text, task_file_id, answer_text, answer_file_id, authors, tags, olympiad, year, language))
+        ''',
+        (
+            sender_id, title, task_text, task_file_id,
+            answer_text, answer_file_id, authors, tags,
+            olympiad, year, language
+        )
+    )
     conn.commit()
     conn.close()
 
 
-#выдает список всех сущ-их авторов задач
+# выдает список всех сущ-их авторов задач
 def dai_authors():
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
-    cursor.execute("SELECT authors FROM tasks WHERE authors IS NOT NULL AND status = 'approved'")
+    cursor.execute(
+        "SELECT authors FROM tasks WHERE authors IS NOT NULL AND status = 'approved'")
     all_authors = cursor.fetchall()
     conn.close()
     set_authors = set()
@@ -80,11 +91,12 @@ def dai_authors():
     return list(set_authors)
 
 
-#выдает список сущ-их тэгов
+# выдает список сущ-их тэгов
 def dai_tags():
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
-    cursor.execute("SELECT tags FROM tasks WHERE tags IS NOT NULL AND status ='approved'")
+    cursor.execute(
+        "SELECT tags FROM tasks WHERE tags IS NOT NULL AND status ='approved'")
     all_tags = cursor.fetchall()
     conn.close
     set_tags = set()
@@ -98,11 +110,12 @@ def dai_tags():
     return list(set_tags)
 
 
-#выдает список сущ-их языков
+# выдает список сущ-их языков
 def dai_lang():
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
-    cursor.execute("SELECT language FROM tasks WHERE language IS NOT NULL AND status ='approved'")
+    cursor.execute(
+        "SELECT language FROM tasks WHERE language IS NOT NULL AND status ='approved'")
     all_lang = cursor.fetchall()
     conn.close
     set_lang = set()
@@ -116,12 +129,16 @@ def dai_lang():
     return list(set_lang)
 
 
-#отдаст список словарей с id и всем остальным мета задач которые ожидают одобрения админов
+# отдаст список словарей с id и всем остальным мета задач
+# которые ожидают одобрения админов
 def sptasks_na_odobrenie():
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute("SELECT id, title, authors, tags, olympiad, year, language FROM tasks WHERE status = 'pending'")
+    cursor.execute(
+        "SELECT id, title, olympiad, year FROM tasks "
+        "WHERE status = 'pending'"
+    )
     na_ids = cursor.fetchall()
     sp_ids = []
     for sl in na_ids:
@@ -130,13 +147,14 @@ def sptasks_na_odobrenie():
     return sp_ids
 
 
-#одобрение задачи (по id)
+# одобрение задачи (по id)
 def odobrenie(task_id):
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
     cursor.execute("SELECT sender_id FROM tasks WHERE id = ?", (task_id,))
     sender = cursor.fetchone()
-    cursor.execute("UPDATE tasks SET status = 'approved' WHERE id = ?", (task_id,))
+    cursor.execute(
+        "UPDATE tasks SET status = 'approved' WHERE id = ?", (task_id,))
     conn.commit()
     conn.close()
     if sender:
@@ -145,7 +163,7 @@ def odobrenie(task_id):
         return None
 
 
-#удаление задачи (по id)
+# удаление задачи (по id)
 def udalenie(task_id):
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
@@ -160,7 +178,7 @@ def udalenie(task_id):
         return None
 
 
-#отдаст в виде словаря строку со всеми данными задачи по ее id
+# отдаст в виде словаря строку со всеми данными задачи по ее id
 def vivod_na_check(task_id):
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
@@ -174,7 +192,8 @@ def vivod_na_check(task_id):
         return None
 
 
-#отдаст в виде списка словарей все данные задач (1 и больше) по одному названию
+# отдаст в виде списка словарей все данные задач (1 и больше) по одному
+# названию
 def task_po_title(tasks_title):
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
@@ -188,7 +207,7 @@ def task_po_title(tasks_title):
     return sp_tasks_title
 
 
-#вытаскивает в виде списка словарей все задачи одной олимпиады
+# вытаскивает в виде списка словарей все задачи одной олимпиады
 def task_po_olimp(tasks_olimp):
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
@@ -202,7 +221,7 @@ def task_po_olimp(tasks_olimp):
     return sp_tasks_olimp
 
 
-#вытакивает в виде списка словарей все задачи одного года
+# вытакивает в виде списка словарей все задачи одного года
 def task_po_year(tasks_year):
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
@@ -215,8 +234,16 @@ def task_po_year(tasks_year):
     conn.close
     return sp_tasks_year
 
-#поиск в который на вход пожалуйста сделайте списки во всех переменных
-def top_search(ztitle = None, zauthors = None, ztags = None, zolymp = None, zyear = None, zlang = None):
+# поиск в который на вход пожалуйста сделайте списки во всех переменных
+
+
+def top_search(
+        ztitle=None,
+        zauthors=None,
+        ztags=None,
+        zolymp=None,
+        zyear=None,
+        zlang=None):
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -271,20 +298,31 @@ def top_search(ztitle = None, zauthors = None, ztags = None, zolymp = None, zyea
     return sp_matches[:5]
 
 
-#редактирует любую ячейку задачи по ее id и указанию столбца для редактирования
+# редактирует любую ячейку задачи по ее id и указанию столбца для
+# редактирования
 def redaktor(task_id, stolb, new):
-    real_stolbs = ['task_text', 'answer_text', 'title', 'authors', 'tags', 'olympiad', 'year', 'language']
+    real_stolbs = [
+        'task_text',
+        'answer_text',
+        'title',
+        'authors',
+        'tags',
+        'olympiad',
+        'year',
+        'language']
     if stolb in real_stolbs:
         conn = sqlite3.connect(DB)
         cursor = conn.cursor()
-        cursor.execute(f"UPDATE tasks SET {stolb} = ? WHERE id = ?", (new, task_id))
+        cursor.execute(
+            f"UPDATE tasks SET {stolb} = ? WHERE id = ?", (new, task_id))
         conn.commit()
         conn.close
     else:
         print(f'Нет столбца с именем {stolb}')
 
 
-#хз надо или нет но эта функци выводит просто список словарей с данными всех вообще задач (и одобренных и нет)
+# хз надо или нет но эта функци выводит просто список словарей с данными
+# всех вообще задач (и одобренных и нет)
 def dai_all():
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
@@ -298,11 +336,13 @@ def dai_all():
     return sp_all_tasks
 
 
-#выдает список названий задач без повторов, учитывает пробелы (берет название за строку)
+# выдает список названий задач без повторов, учитывает пробелы (берет
+# название за строку)
 def dai_titles():
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
-    cursor.execute("SELECT title FROM tasks WHERE title IS NOT NULL AND status = 'approved'")
+    cursor.execute(
+        "SELECT title FROM tasks WHERE title IS NOT NULL AND status = 'approved'")
     all_titles = cursor.fetchall()
     conn.close()
     set_titles = set()
@@ -312,11 +352,14 @@ def dai_titles():
             set_titles.add(clean_ti)
     return list(set_titles)
 
-#выдает список названий олимпиад без повторов, учитывает пробелы
+# выдает список названий олимпиад без повторов, учитывает пробелы
+
+
 def dai_olympiads():
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
-    cursor.execute("SELECT olympiad FROM tasks WHERE olympiad IS NOT NULL AND status = 'approved'")
+    cursor.execute(
+        "SELECT olympiad FROM tasks WHERE olympiad IS NOT NULL AND status = 'approved'")
     all_olymp = cursor.fetchall()
     conn.close()
     set_olymp = set()
@@ -326,11 +369,14 @@ def dai_olympiads():
             set_olymp.add(clean_ol)
     return list(set_olymp)
 
-#выдает список лет
+# выдает список лет
+
+
 def dai_years():
     conn = sqlite3.connect(DB)
     cursor = conn.cursor()
-    cursor.execute("SELECT year FROM tasks WHERE year IS NOT NULL AND status = 'approved'")
+    cursor.execute(
+        "SELECT year FROM tasks WHERE year IS NOT NULL AND status = 'approved'")
     all_years = cursor.fetchall()
     conn.close()
 
@@ -341,14 +387,19 @@ def dai_years():
     return list(set_years)
 
 
-#выдает список задач на один язык
+# выдает список задач
+# на один язык
 def task_po_lang(lang):
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute('''
-                   SELECT id, title, language FROM tasks WHERE language LIKE ? AND status = "approved"
-                   ''', (f"%{lang}%",))
+    cursor.execute(
+        '''
+        SELECT id, title, language FROM tasks
+        WHERE language LIKE ? AND status = "approved"
+        ''',
+        (f"%{lang}%",)
+    )
     all_tasks = cursor.fetchall()
     sp_tasks = []
     for sl in all_tasks:
@@ -357,7 +408,7 @@ def task_po_lang(lang):
     return sp_tasks
 
 
-#выдает список задач с определенным тегом
+# выдает список задач с определенным тегом
 def task_po_tag(tag):
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
@@ -374,7 +425,7 @@ def task_po_tag(tag):
     return sp_tasks
 
 
-#выдает список задач с одним автором
+# выдает список задач с одним автором
 def task_po_author(author):
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
@@ -382,7 +433,7 @@ def task_po_author(author):
     cursor.execute('''
         SELECT id, title, language FROM tasks WHERE authors LIKE ? AND status = "approved"
                    ''', (f"%{author}%",)
-    )
+                   )
     all_tasks = cursor.fetchall()
     sp_tasks = []
     for sl in all_tasks:
@@ -395,7 +446,10 @@ def task_po_id(tasks_id):
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute("SELECT task_text, task_file_id, answer_text, answer_file_id FROM tasks WHERE id = ?", (tasks_id,))
+    cursor.execute(
+        "SELECT task_text, task_file_id, answer_text, answer_file_id FROM tasks WHERE id = ?",
+        (tasks_id,
+         ))
     task = cursor.fetchone()
     conn.close()
     if task:
@@ -416,6 +470,7 @@ def change_status(task_id):
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute("UPDATE tasks SET status = 'pending' WHERE id = ?", (task_id,))
+    cursor.execute(
+        "UPDATE tasks SET status = 'pending' WHERE id = ?", (task_id,))
     conn.commit()
     conn.close

@@ -18,12 +18,23 @@ if __name__ == "__main__":
         else:
             tyear = None
         tlanguage = input("На какой язык составлена задача: ")
-        tsender_id = 1234567 
-        tfile_id = "file_id_test_123" 
+        tsender_id = 1234567
+        tfile_id = "file_id_test_123"
         tanswer_file_id = "answer_test_123"
         print("\nПробую сохранить в базу...")
         try:
-            db.add_task(tsender_id, ttitle, ttext, tfile_id, tanswer, tanswer_file_id, tauthors, ttags, tolympiad, tyear, tlanguage)
+            db.add_task(
+                tsender_id,
+                ttitle,
+                ttext,
+                tfile_id,
+                tanswer,
+                tanswer_file_id,
+                tauthors,
+                ttags,
+                tolympiad,
+                tyear,
+                tlanguage)
             print("УСПЕШНО! Задача сохранена.")
         except Exception as e:
             print(f"ОШИБКА при сохранении: {e}")
@@ -89,8 +100,15 @@ if __name__ == "__main__":
         ttags = input("Введите тэги через запятую: ").strip().split(', ')
         tolympiad = list(input("Введите олимпиаду задачи: "))
         tyear = list(input("Введите год олимпиады: "))
-        tlanguage = input("На какой язык составлена задача: ").strip().split(', ')
-        searched = db.top_search(ttitle, tauthors, ttags, tolympiad, tyear, tlanguage)
+        tlanguage = input(
+            "На какой язык составлена задача: ").strip().split(', ')
+        searched = db.top_search(
+            ttitle,
+            tauthors,
+            ttags,
+            tolympiad,
+            tyear,
+            tlanguage)
         for t in searched:
             print(f"[{t['id']}] {t['title']} {t['language']}")
     if komanda == 'dai_ti':
