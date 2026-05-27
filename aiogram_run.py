@@ -1108,6 +1108,7 @@ async def cmd_start(message: Message):
 @start_router.message(Command('add'))
 async def cmd_add(message: Message):
     user_id = message.from_user.id
+    print(f"DEBUG: user_id={user_id}, step={step.get(user_id)}, in_search={user_id in search_step}, text={message.text[:50]}")
     step[user_id] = 0
     await message.answer('Шаг 0. Введи название задачи. Если не хочешь указывать, нажми "Пропустить".', reply_markup=skip_keyboard())
 
