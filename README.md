@@ -31,7 +31,6 @@
 - ***Python*** - основная логика проекта
 - ***aiogram*** — работа с Telegram Bot API  
 - ***SQLite*** — локальное хранение данных (встроен в python) 
-- ***APScheduler*** — планировщик задач  
 - ***python-decouple*** — управление конфигурацией через .env
 
 Полный список можно посмотреть в [requirements.txt](https://github.com/jewgenichka/LingDB_project/blob/master/requirements.txt).
